@@ -72,6 +72,66 @@ public class OrderService {
         log.info("Order deleted: id={}", id);
     }
 
+    @Transactional
+    OrderResponseDto addItem(@NotNull final UUID orderId, @NotNull final ItemRequestDto itemRequest) {
+        final Order order = findByIdOrThrow(orderId);
+        ensureEditable(order);
+
+        final Item item = Item.builder()
+                .order(order)
+                .description(itemRequest.description())
+                .unitPrice(itemRequest.unitPrice())
+                .quantity(itemRequest.quantity())
+                .build();
+        order.getItems().add(item);
+        order.calculateTotal();
+
+        final Order saved = orderRepository.save(order);
+        log.info("Item added to order: orderId={}", orderId);
+        return OrderResponseDto.from(saved);
+    }
+
+    @Transactional
+    OrderResponseDto updateItemQuantity(@NotNull final UUID orderId, @NotNull final UUID itemId, @NotNull final Integer quantity) {
+        final Order order = findByIdOrThrow(orderId);
+        ensureEditable(order);
+
+        final Item item = findItemOrThrow(order, itemId);
+        item.setQuantity(quantity);
+        order.calculateTotal();
+
+        final Order saved = orderRepository.save(order);
+        log.info("Item quantity updated: orderId={}, itemId={}", orderId, itemId);
+        return OrderResponseDto.from(saved);
+    }
+
+    @Transactional
+    OrderResponseDto removeItem(@NotNull final UUID orderId, @NotNull final UUID itemId) {
+        final Order order = findByIdOrThrow(orderId);
+        ensureEditable(order);
+
+        final Item item = findItemOrThrow(order, itemId);
+        order.getItems().remove(item);
+        order.calculateTotal();
+
+        final Order saved = orderRepository.save(order);
+        log.info("Item removed from order: orderId={}, itemId={}", orderId, itemId);
+        return OrderResponseDto.from(saved);
+    }
+
+    private void ensureEditable(final Order order) {
+        if (!order.isEditable()) {
+            throw new InvalidInputException("Order is not editable in its current status", ErrorCode.VALIDATION_ORDER_NOT_EDITABLE);
+        }
+    }
+
+    private Item findItemOrThrow(final Order order, final UUID itemId) {
+        return order.getItems().stream()
+                .filter(item -> item.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Item not found", ErrorCode.RESOURCE_NOT_FOUND_ITEM));
+    }
+
     private Order findByIdOrThrow(final UUID id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found", ErrorCode.RESOURCE_NOT_FOUND_ORDER));

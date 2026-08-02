@@ -4,10 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
@@ -139,6 +138,101 @@ class OrderServiceTest {
         when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(orderId)).isInstanceOf(ResourceNotFoundException.class);
+        verify(orderRepository, never()).save(any());
+    }
+
+    private static Order openOrderWith(final Item... items) {
+        final Customer customer = Customer.builder().id(UUID.randomUUID()).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
+        final Order order = Order.builder().id(UUID.randomUUID()).customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build();
+        for (final Item existingItem : items) {
+            existingItem.setOrder(order);
+            order.getItems().add(existingItem);
+        }
+        order.calculateTotal();
+        return order;
+    }
+
+    @Test
+    void addItem_ShouldRecalculateTotal_WhenSucceeds() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final OrderResponseDto result = service.addItem(order.getId(), item("Widget", "10.00", 2));
+
+        assertThat(result.total()).isEqualByComparingTo("20.00");
+        assertThat(result.items()).hasSize(1);
+    }
+
+    @Test
+    void addItem_ShouldThrowInvalidInputException_WhenOrderIsNotOpen() {
+        final Order order = openOrderWith();
+        order.setStatus(OrderStatus.CONFIRMED);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.addItem(order.getId(), item("Widget", "10.00", 1)))
+                .isInstanceOf(InvalidInputException.class)
+                .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_ORDER_NOT_EDITABLE));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void updateItemQuantity_ShouldRecalculateTotal_WhenSucceeds() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final OrderResponseDto result = service.updateItemQuantity(order.getId(), existingItem.getId(), 5);
+
+        assertThat(result.total()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    void updateItemQuantity_ShouldThrowInvalidInputException_WhenOrderIsCanceled() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        order.setStatus(OrderStatus.CANCELED);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.updateItemQuantity(order.getId(), existingItem.getId(), 5))
+                .isInstanceOf(InvalidInputException.class);
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void updateItemQuantity_ShouldThrowResourceNotFoundException_WhenItemDoesNotBelongToOrder() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.updateItemQuantity(order.getId(), UUID.randomUUID(), 5))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void removeItem_ShouldRecalculateTotal_WhenSucceeds() {
+        final Item toRemove = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Item toKeep = Item.builder().id(UUID.randomUUID()).description("Gadget").unitPrice(new BigDecimal("5.00")).quantity(1).build();
+        final Order order = openOrderWith(toRemove, toKeep);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final OrderResponseDto result = service.removeItem(order.getId(), toRemove.getId());
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.total()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void removeItem_ShouldThrowInvalidInputException_WhenOrderIsNotOpen() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        order.setStatus(OrderStatus.CONFIRMED);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.removeItem(order.getId(), existingItem.getId()))
+                .isInstanceOf(InvalidInputException.class);
         verify(orderRepository, never()).save(any());
     }
 }
