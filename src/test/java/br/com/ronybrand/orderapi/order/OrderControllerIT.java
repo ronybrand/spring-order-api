@@ -33,11 +33,18 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
     @Autowired
     private CustomerRepository customerRepository;
 
+    @Autowired
+    private ItemTestCleanupRepository itemTestCleanupRepository;
+
+    @Autowired
+    private OrderTestCleanupRepository orderTestCleanupRepository;
+
     private Customer customer;
 
     @BeforeEach
     void setUp() {
-        orderRepository.deleteAll();
+        itemTestCleanupRepository.deleteAllHard();
+        orderTestCleanupRepository.deleteAllHard();
         customerRepository.deleteAll();
         customer = customerRepository.save(
                 Customer.builder().name("Ada Lovelace")
@@ -113,5 +120,46 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody().total()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void findById_ShouldReturn200_WhenExists() {
+        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+
+        final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId(), HttpMethod.GET,
+                request(authHeadersForUser()), OrderResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().id()).isEqualTo(order.getId());
+    }
+
+    @Test
+    void findById_ShouldReturn404_WhenNotExists() {
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + UUID.randomUUID(), HttpMethod.GET,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND_ORDER.getCode());
+    }
+
+    @Test
+    void delete_ShouldReturn204AndExcludeFromSubsequentFindById() {
+        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+
+        final ResponseEntity<Void> deleteResponse = restTemplate.exchange("/orders/" + order.getId(), HttpMethod.DELETE,
+                request(authHeadersForUser()), Void.class);
+        final ResponseEntity<ErrorResponseDto> findResponse = restTemplate.exchange("/orders/" + order.getId(), HttpMethod.GET,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(findResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void delete_ShouldReturn404_WhenNotExists() {
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + UUID.randomUUID(), HttpMethod.DELETE,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

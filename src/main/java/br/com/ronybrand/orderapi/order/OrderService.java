@@ -2,13 +2,17 @@ package br.com.ronybrand.orderapi.order;
 
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
+import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
 import br.com.ronybrand.orderapi.customer.Customer;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,8 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class OrderService {
 
+    private static final String SYSTEM_USER = "system";
+
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
+    private final AuditorAware<String> auditorAware;
 
     /**
      * customerId that doesn't resolve to an existing customer is a 400
@@ -49,5 +56,24 @@ public class OrderService {
         final Order saved = orderRepository.save(order);
         log.info("Order created: id={}", saved.getId());
         return OrderResponseDto.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    OrderResponseDto findById(@NotNull final UUID id) {
+        return OrderResponseDto.from(findByIdOrThrow(id));
+    }
+
+    @Transactional
+    void delete(@NotNull final UUID id) {
+        final Order order = findByIdOrThrow(id);
+        order.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
+        order.setDeletedBy(auditorAware.getCurrentAuditor().orElse(SYSTEM_USER));
+        orderRepository.save(order);
+        log.info("Order deleted: id={}", id);
+    }
+
+    private Order findByIdOrThrow(final UUID id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found", ErrorCode.RESOURCE_NOT_FOUND_ORDER));
     }
 }

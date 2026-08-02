@@ -8,9 +8,15 @@ import br.com.ronybrand.orderapi.AbstractAuthIntegrationTest;
 import br.com.ronybrand.orderapi.TestSecurityConfig;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.ErrorResponseDto;
+import br.com.ronybrand.orderapi.order.Order;
+import br.com.ronybrand.orderapi.order.OrderRepository;
+import br.com.ronybrand.orderapi.order.OrderStatus;
+import br.com.ronybrand.orderapi.order.OrderTestCleanupRepository;
+import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -27,8 +33,15 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
     @MockitoSpyBean
     private CustomerRepository customerRepository;
 
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderTestCleanupRepository orderTestCleanupRepository;
+
     @BeforeEach
     void cleanUp() {
+        orderTestCleanupRepository.deleteAllHard();
         customerRepository.deleteAll();
     }
 
@@ -270,5 +283,18 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
                 request(authHeadersForAdmin()), ErrorResponseDto.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void delete_ShouldReturn400_WhenCustomerHasActiveOrders() {
+        final Customer customer = customerRepository.save(
+                Customer.builder().name("Ada Lovelace").taxId("TAX-0022").email("ada@example.com").build());
+        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.DELETE,
+                request(authHeadersForAdmin()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_CUSTOMER_HAS_ORDERS.getCode());
     }
 }

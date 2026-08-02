@@ -4,9 +4,11 @@ import br.com.ronybrand.orderapi.commons.config.CacheConfig;
 import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ConflictException;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
+import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
 import br.com.ronybrand.orderapi.commons.filter.SearchService;
 import br.com.ronybrand.orderapi.commons.filter.SearchUtils;
+import br.com.ronybrand.orderapi.order.OrderRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
@@ -34,6 +36,7 @@ public class CustomerService implements SearchService<CustomerDto> {
     private static final String SYSTEM_USER = "system";
 
     private final CustomerRepository customerRepository;
+    private final OrderRepository orderRepository;
     private final EntityManager entityManager;
     private final PaginationProperties paginationProperties;
     private final AuditorAware<String> auditorAware;
@@ -78,6 +81,10 @@ public class CustomerService implements SearchService<CustomerDto> {
     @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
     void delete(@NotNull final UUID id) {
         final Customer customer = findByIdOrThrow(id);
+        if (orderRepository.existsByCustomerId(id)) {
+            throw new InvalidInputException("Customer has associated orders and cannot be deleted",
+                    ErrorCode.VALIDATION_CUSTOMER_HAS_ORDERS);
+        }
         customer.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         customer.setDeletedBy(auditorAware.getCurrentAuditor().orElse(SYSTEM_USER));
         customerRepository.save(customer);

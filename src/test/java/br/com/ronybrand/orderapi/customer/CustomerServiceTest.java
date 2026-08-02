@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ConflictException;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
+import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
+import br.com.ronybrand.orderapi.order.OrderRepository;
 import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,12 +23,13 @@ import org.springframework.data.domain.AuditorAware;
 class CustomerServiceTest {
 
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
+    private final OrderRepository orderRepository = mock(OrderRepository.class);
     private final EntityManager entityManager = mock(EntityManager.class);
     private final PaginationProperties paginationProperties = new PaginationProperties(0, 20, 100);
     @SuppressWarnings("unchecked")
     private final AuditorAware<String> auditorAware = mock(AuditorAware.class);
     private final CustomerService service =
-            new CustomerService(customerRepository, entityManager, paginationProperties, auditorAware);
+            new CustomerService(customerRepository, orderRepository, entityManager, paginationProperties, auditorAware);
 
     @Test
     void create_ShouldPersistCustomer_WhenDataIsValid() {
@@ -199,5 +202,33 @@ class CustomerServiceTest {
 
         assertThatThrownBy(() -> service.delete(id)).isInstanceOf(ResourceNotFoundException.class);
         verify(customerRepository, never()).save(any());
+    }
+
+    @Test
+    void delete_ShouldThrowInvalidInputException_WhenCustomerHasActiveOrders() {
+        final UUID id = UUID.randomUUID();
+        final Customer existing = Customer.builder().id(id).name("Ada Lovelace").taxId("TAX-12345").email("ada@example.com").build();
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(orderRepository.existsByCustomerId(id)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.delete(id))
+                .isInstanceOf(InvalidInputException.class)
+                .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_CUSTOMER_HAS_ORDERS));
+        verify(customerRepository, never()).save(any());
+    }
+
+    @Test
+    void delete_ShouldSucceed_WhenCustomerHasNoActiveOrders() {
+        final UUID id = UUID.randomUUID();
+        final Customer existing = Customer.builder().id(id).name("Ada Lovelace").taxId("TAX-12345").email("ada@example.com").build();
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(orderRepository.existsByCustomerId(id)).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("admin-user"));
+
+        service.delete(id);
+
+        verify(customerRepository).save(existing);
     }
 }
