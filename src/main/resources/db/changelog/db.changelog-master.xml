@@ -6,5 +6,6 @@
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <include file="db/changelog/001-create-customer-schema.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/002-create-order-schema.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

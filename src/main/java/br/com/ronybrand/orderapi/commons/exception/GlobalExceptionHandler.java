@@ -8,6 +8,7 @@ import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -60,6 +61,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleDataIntegrityViolation(final DataIntegrityViolationException ex) {
         log.warn("Data integrity violation", ex);
         return build(HttpStatus.CONFLICT, ErrorCode.CONFLICT_DATA_INTEGRITY_VIOLATION, null);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponseDto> handleOptimisticLocking(final ObjectOptimisticLockingFailureException ex) {
+        log.warn("Optimistic locking conflict - entity: {}, id: {}", ex.getPersistentClassName(), ex.getIdentifier());
+        return build(HttpStatus.CONFLICT, ErrorCode.CONFLICT_CONCURRENT_MODIFICATION, null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

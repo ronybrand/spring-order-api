@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -84,6 +85,15 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.CONFLICT_DATA_INTEGRITY_VIOLATION.getCode());
+    }
+
+    @Test
+    void handleOptimisticLocking_ShouldReturn409() {
+        final ResponseEntity<ErrorResponseDto> response = handler.handleOptimisticLocking(
+                new ObjectOptimisticLockingFailureException("Order", "some-id"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.CONFLICT_CONCURRENT_MODIFICATION.getCode());
     }
 
     @Test
