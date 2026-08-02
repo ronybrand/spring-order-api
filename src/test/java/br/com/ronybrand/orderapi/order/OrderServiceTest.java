@@ -314,4 +314,53 @@ class OrderServiceTest {
 
         verify(eventPublisher, never()).publishEvent(any());
     }
+
+    @Test
+    void cancel_ShouldChangeStatusToCanceled_WhenOpen() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final OrderResponseDto result = service.cancel(order.getId());
+
+        assertThat(result.status()).isEqualTo(OrderStatus.CANCELED);
+    }
+
+    @Test
+    void cancel_ShouldChangeStatusToCanceled_WhenConfirmed() {
+        final Order order = openOrderWith();
+        order.setStatus(OrderStatus.CONFIRMED);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final OrderResponseDto result = service.cancel(order.getId());
+
+        assertThat(result.status()).isEqualTo(OrderStatus.CANCELED);
+    }
+
+    @Test
+    void cancel_ShouldThrowInvalidInputException_WhenAlreadyCanceled() {
+        final Order order = openOrderWith();
+        order.setStatus(OrderStatus.CANCELED);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.cancel(order.getId()))
+                .isInstanceOf(InvalidInputException.class)
+                .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void cancel_ShouldPublishEvent_WhenCustomerHasEmail() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.cancel(order.getId());
+
+        final ArgumentCaptor<OrderStatusChangedEvent> captor = ArgumentCaptor.forClass(OrderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().newStatus()).isEqualTo(OrderStatus.CANCELED);
+    }
 }

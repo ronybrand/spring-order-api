@@ -287,4 +287,42 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION.getCode());
     }
+
+    @Test
+    void cancel_ShouldReturn200_WhenOpen() {
+        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+
+        final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST,
+                request(authHeadersForUser()), OrderResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().status()).isEqualTo(OrderStatus.CANCELED);
+    }
+
+    @Test
+    void cancel_ShouldReturn200_WhenConfirmed() {
+        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
+        order.calculateTotal();
+        order = orderRepository.save(order);
+        restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST, request(authHeadersForUser()), OrderResponseDto.class);
+
+        final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST,
+                request(authHeadersForUser()), OrderResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().status()).isEqualTo(OrderStatus.CANCELED);
+    }
+
+    @Test
+    void cancel_ShouldReturn400_WhenAlreadyCanceled() {
+        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST, request(authHeadersForUser()), OrderResponseDto.class);
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION.getCode());
+    }
 }

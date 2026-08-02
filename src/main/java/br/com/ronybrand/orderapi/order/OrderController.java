@@ -104,4 +104,15 @@ public class OrderController {
     public ResponseEntity<OrderResponseDto> confirm(@PathVariable final UUID id) {
         return ResponseEntity.ok(orderService.confirm(id));
     }
+
+    /**
+     * @throws br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException if the order does not exist
+     * @throws br.com.ronybrand.orderapi.commons.exception.InvalidInputException if the order is already CANCELED
+     */
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize(Constants.HAS_ROLE_USER)
+    @Operation(summary = "Cancel an order", operationId = "cancelOrder")
+    public ResponseEntity<OrderResponseDto> cancel(@PathVariable final UUID id) {
+        return ResponseEntity.ok(orderService.cancel(id));
+    }
 }

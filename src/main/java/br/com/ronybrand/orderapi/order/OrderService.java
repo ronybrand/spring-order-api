@@ -143,6 +143,27 @@ public class OrderService {
         return OrderResponseDto.from(saved);
     }
 
+    /**
+     * Allowed from OPEN or CONFIRMED; only already-CANCELED is rejected as an invalid transition
+     * (DOMAIN.md §4.4). Reuses the same event-publishing helper as {@link #confirm}.
+     *
+     * @throws InvalidInputException if the order is already CANCELED
+     */
+    @Transactional
+    OrderResponseDto cancel(@NotNull final UUID id) {
+        final Order order = findByIdOrThrow(id);
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            throw new InvalidInputException("Invalid status transition", ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION);
+        }
+
+        final OrderStatus previousStatus = order.getStatus();
+        order.setStatus(OrderStatus.CANCELED);
+        final Order saved = orderRepository.save(order);
+        publishStatusChangedEvent(saved, previousStatus, OrderStatus.CANCELED);
+        log.info("Order canceled: id={}", id);
+        return OrderResponseDto.from(saved);
+    }
+
     private void publishStatusChangedEvent(final Order order, final OrderStatus oldStatus, final OrderStatus newStatus) {
         final Customer customer = order.getCustomer();
         if (StringUtils.isBlank(customer.getEmail())) {
