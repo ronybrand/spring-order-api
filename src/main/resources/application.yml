@@ -29,6 +29,10 @@ spring:
           issuer-uri: ${OAUTH2_ISSUER_URI:http://localhost:8085/realms/orderapi}
 
 app:
+  pagination:
+    default-page: 0
+    default-size: 20
+    max-size: 100
   security:
     oauth2:
       expected-audience: ${OAUTH2_EXPECTED_AUDIENCE:order-api}

@@ -45,6 +45,11 @@ public class GlobalExceptionHandler {
                 "Invalid value for parameter '" + ex.getName() + "'", null);
     }
 
+    @ExceptionHandler(InvalidInputException.class)
+    public ResponseEntity<ErrorResponseDto> handleInvalidInput(final InvalidInputException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getErrorCode(), ex.getMessage(), ex.getParams());
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponseDto> handleConflict(final ConflictException ex) {
         log.warn("Conflict: {}", ex.getMessage());

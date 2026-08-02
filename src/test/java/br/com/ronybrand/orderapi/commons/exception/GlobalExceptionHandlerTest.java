@@ -34,6 +34,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleInvalidInput_ShouldReturn400WithExceptionMessageAndErrorCode() {
+        final InvalidInputException ex = new InvalidInputException("Invalid sort field: notAField", ErrorCode.VALIDATION_INVALID_SORT_FIELD);
+
+        final ResponseEntity<ErrorResponseDto> response = handler.handleInvalidInput(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_INVALID_SORT_FIELD.getCode());
+    }
+
+    @Test
     void handleConflict_ShouldReturn409WithExceptionMessageAndErrorCode() {
         final ConflictException ex = new ConflictException("Tax ID already exists", ErrorCode.VALIDATION_CUSTOMER_TAXID_EXISTS);
 

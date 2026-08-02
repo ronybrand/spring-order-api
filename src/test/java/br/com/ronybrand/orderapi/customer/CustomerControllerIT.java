@@ -177,4 +177,56 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_CUSTOMER_TAXID_EXISTS.getCode());
     }
+
+    @Test
+    void search_ShouldReturn200WithFilteredResults() {
+        customerRepository.save(Customer.builder().name("Ada Lovelace").taxId("TAX-0014").email("ada@example.com").build());
+        customerRepository.save(Customer.builder().name("Alan Turing").taxId("TAX-0015").email("alan@example.com").build());
+
+        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[taxId]=TAX-0014", HttpMethod.GET,
+                request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("TAX-0014").doesNotContain("TAX-0015");
+    }
+
+    @Test
+    void search_ShouldReturn400_WhenSortFieldIsInvalid() {
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/search?order=notAField", HttpMethod.GET,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_INVALID_SORT_FIELD.getCode());
+    }
+
+    @Test
+    void search_ShouldReturn401_WhenUnauthenticated() {
+        final ResponseEntity<Void> response = restTemplate.exchange("/customers/search", HttpMethod.GET,
+                request(headers()), Void.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void search_ShouldSupportLikeOperator_OnTextFields() {
+        customerRepository.save(Customer.builder().name("Ada Lovelace").taxId("TAX-0016").email("ada@example.com").build());
+        customerRepository.save(Customer.builder().name("Alan Turing").taxId("TAX-0017").email("alan@example.com").build());
+
+        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[name][lk]=Love", HttpMethod.GET,
+                request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("Ada Lovelace").doesNotContain("Alan Turing");
+    }
+
+    @Test
+    void search_ShouldIgnoreFilterOnNonExistentField_Silently() {
+        customerRepository.save(Customer.builder().name("Ada Lovelace").taxId("TAX-0018").email("ada@example.com").build());
+
+        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[notAField]=x", HttpMethod.GET,
+                request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("TAX-0018");
+    }
 }

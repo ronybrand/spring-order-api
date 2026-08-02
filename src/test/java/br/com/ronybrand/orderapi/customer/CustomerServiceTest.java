@@ -8,9 +8,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ConflictException;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
+import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -18,7 +20,9 @@ import org.junit.jupiter.api.Test;
 class CustomerServiceTest {
 
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
-    private final CustomerService service = new CustomerService(customerRepository);
+    private final EntityManager entityManager = mock(EntityManager.class);
+    private final PaginationProperties paginationProperties = new PaginationProperties(0, 20, 100);
+    private final CustomerService service = new CustomerService(customerRepository, entityManager, paginationProperties);
 
     @Test
     void create_ShouldPersistCustomer_WhenDataIsValid() {
