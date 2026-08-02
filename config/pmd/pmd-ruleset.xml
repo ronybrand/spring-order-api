@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<ruleset name="spring-order-api"
+    xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>
+        This project's static quality gate: PMD's bestpractices + errorprone categories, with the
+        pointed exclusions documented below. Run via `mvn verify` (goal pmd:check,
+        failOnViolation=true) - any violation breaks the build.
+    </description>
+
+    <rule ref="category/java/bestpractices.xml">
+        <!-- SLF4J with placeholders ({}) does not evaluate arguments eagerly unless the argument
+             itself is an expensive method call - which is not the case for this project's logging
+             pattern (log.info with an entity id). Systematic false positive here. -->
+        <exclude name="GuardLogStatement"/>
+    </rule>
+
+    <rule ref="category/java/errorprone.xml">
+        <!-- High false-positive rate against Lombok-generated code (@Builder/@RequiredArgsConstructor):
+             PMD doesn't see the initialization Lombok generates and incorrectly reports a
+             "possibly undefined" variable. -->
+        <exclude name="DataflowAnomalyAnalysis"/>
+        <!-- No entity/DTO in this project implements java.io.Serializable by design (JPA entities
+             don't need to, DTOs are records) - rule doesn't apply to this codebase. -->
+        <exclude name="MissingSerialVersionUID"/>
+    </rule>
+
+</ruleset>

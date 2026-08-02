@@ -1,0 +1,10 @@
+# Overrides only what's needed so the test suite doesn't self-throttle - never disables the
+# production guards (rate limit, CORS), only adjusts the parameters because the whole suite hits
+# the same address/origin, unlike the distributed traffic these guards are meant to contain.
+app:
+  security:
+    cors:
+      allowed-origins: http://localhost:3000
+    rate-limit:
+      max-requests-per-window: 100000
+      window-seconds: 60

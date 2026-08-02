@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    username: ${DB_USERNAME:orderapi}
+    password: ${DB_PASSWORD:orderapi}
+
+app:
+  security:
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

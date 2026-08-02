@@ -1,0 +1,10 @@
+target/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+.env
+
+# Skill/agent config stays out of this application's version control: kept locally, not
+# versioned.
+.claude/

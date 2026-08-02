@@ -1,0 +1,46 @@
+package br.com.ronybrand.orderapi.commons.security;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+
+/**
+ * Generic reflection-based {@code toString()}: any field annotated with {@link Sensitive} is
+ * printed as {@value #MASK}, the rest print normally. Entities/DTOs with a sensitive field
+ * delegate {@code toString()} here instead of repeating {@code @ToString.Exclude} field by
+ * field - written once, covers every new class automatically.
+ */
+public final class SensitiveDataMasker {
+
+    private static final String MASK = "***REDACTED***";
+
+    private SensitiveDataMasker() {
+    }
+
+    public static String toString(final Object target) {
+        final StringBuilder result = new StringBuilder(target.getClass().getSimpleName()).append('(');
+        boolean first = true;
+        for (final Field field : target.getClass().getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            if (!first) {
+                result.append(", ");
+            }
+            first = false;
+            result.append(field.getName()).append('=').append(renderValue(field, target));
+        }
+        return result.append(')').toString();
+    }
+
+    private static Object renderValue(final Field field, final Object target) {
+        if (field.isAnnotationPresent(Sensitive.class)) {
+            return MASK;
+        }
+        field.setAccessible(true);
+        try {
+            return field.get(target);
+        } catch (final IllegalAccessException e) {
+            return "?";
+        }
+    }
+}
