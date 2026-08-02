@@ -13,6 +13,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 class GlobalExceptionHandlerTest {
 
@@ -41,6 +42,29 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_CUSTOMER_TAXID_EXISTS.getCode());
         assertThat(response.getBody().message()).isEqualTo("Tax ID already exists");
+    }
+
+    @Test
+    void handleResourceNotFound_ShouldReturn404WithExceptionMessageAndErrorCode() {
+        final ResourceNotFoundException ex = new ResourceNotFoundException("Customer not found", ErrorCode.RESOURCE_NOT_FOUND_CUSTOMER);
+
+        final ResponseEntity<ErrorResponseDto> response = handler.handleResourceNotFound(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND_CUSTOMER.getCode());
+        assertThat(response.getBody().message()).isEqualTo("Customer not found");
+    }
+
+    @Test
+    void handleTypeMismatch_ShouldReturn400() {
+        final MethodArgumentTypeMismatchException ex = mock(MethodArgumentTypeMismatchException.class);
+        when(ex.getName()).thenReturn("id");
+
+        final ResponseEntity<ErrorResponseDto> response = handler.handleTypeMismatch(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_CONSTRAINT_VIOLATION.getCode());
+        assertThat(response.getBody().message()).contains("id");
     }
 
     @Test

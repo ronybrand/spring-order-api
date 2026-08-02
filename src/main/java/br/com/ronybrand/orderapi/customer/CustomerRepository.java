@@ -8,4 +8,8 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     boolean existsByTaxId(String taxId);
 
     boolean existsByPassportNumber(String passportNumber);
+
+    boolean existsByTaxIdAndIdNot(String taxId, UUID id);
+
+    boolean existsByPassportNumberAndIdNot(String passportNumber, UUID id);
 }

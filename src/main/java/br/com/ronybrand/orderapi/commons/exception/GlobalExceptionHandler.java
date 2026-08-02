@@ -13,6 +13,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Single exception -> HTTP response translation point. Grows incrementally: a new
@@ -31,6 +32,17 @@ public class GlobalExceptionHandler {
             fieldErrors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_MISSING_FIELD, fieldErrors);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponseDto> handleResourceNotFound(final ResourceNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getErrorCode(), ex.getMessage(), ex.getParams());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponseDto> handleTypeMismatch(final MethodArgumentTypeMismatchException ex) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_CONSTRAINT_VIOLATION,
+                "Invalid value for parameter '" + ex.getName() + "'", null);
     }
 
     @ExceptionHandler(ConflictException.class)

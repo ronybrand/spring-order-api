@@ -44,6 +44,12 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
 		</dependency>
+		<!-- Brings in spring-context-support (CaffeineCacheManager), used by CacheConfig for
+			 @Cacheable reads (e.g. Customer.findById). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
 		<!-- Swagger/OpenAPI - enabled only in the dev profile (see commons/config and application.yml) -->
 		<dependency>
 			<groupId>org.springdoc</groupId>
