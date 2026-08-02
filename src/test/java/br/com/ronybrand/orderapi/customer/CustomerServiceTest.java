@@ -16,13 +16,17 @@ import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.AuditorAware;
 
 class CustomerServiceTest {
 
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
     private final EntityManager entityManager = mock(EntityManager.class);
     private final PaginationProperties paginationProperties = new PaginationProperties(0, 20, 100);
-    private final CustomerService service = new CustomerService(customerRepository, entityManager, paginationProperties);
+    @SuppressWarnings("unchecked")
+    private final AuditorAware<String> auditorAware = mock(AuditorAware.class);
+    private final CustomerService service =
+            new CustomerService(customerRepository, entityManager, paginationProperties, auditorAware);
 
     @Test
     void create_ShouldPersistCustomer_WhenDataIsValid() {
@@ -171,5 +175,29 @@ class CustomerServiceTest {
         service.update(id, request);
 
         verify(customerRepository).save(existing);
+    }
+
+    @Test
+    void delete_ShouldSoftDeleteCustomer_WhenExists() {
+        final UUID id = UUID.randomUUID();
+        final Customer existing = Customer.builder().id(id).name("Ada Lovelace").taxId("TAX-12345").email("ada@example.com").build();
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("admin-user"));
+
+        service.delete(id);
+
+        assertThat(existing.getDeletedAt()).isNotNull();
+        assertThat(existing.getDeletedBy()).isEqualTo("admin-user");
+        verify(customerRepository).save(existing);
+    }
+
+    @Test
+    void delete_ShouldThrowResourceNotFoundException_WhenNotExists() {
+        final UUID id = UUID.randomUUID();
+        when(customerRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(id)).isInstanceOf(ResourceNotFoundException.class);
+        verify(customerRepository, never()).save(any());
     }
 }

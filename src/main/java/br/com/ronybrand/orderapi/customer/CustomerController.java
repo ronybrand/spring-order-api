@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -76,6 +77,17 @@ public class CustomerController implements SearchControllerSupport<CustomerDto> 
     @Operation(summary = "Update an existing customer", operationId = "updateCustomer")
     public ResponseEntity<Void> update(@PathVariable final UUID id, @RequestBody @Valid final CustomerRequestDto request) {
         customerService.update(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * @throws br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException if the customer does not exist
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize(Constants.HAS_ROLE_ADMIN)
+    @Operation(summary = "Soft-delete a customer", operationId = "deleteCustomer")
+    public ResponseEntity<Void> delete(@PathVariable final UUID id) {
+        customerService.delete(id);
         return ResponseEntity.noContent().build();
     }
 }

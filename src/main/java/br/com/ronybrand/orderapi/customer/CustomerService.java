@@ -9,6 +9,8 @@ import br.com.ronybrand.orderapi.commons.filter.SearchService;
 import br.com.ronybrand.orderapi.commons.filter.SearchUtils;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,9 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CustomerService implements SearchService<CustomerDto> {
 
+    private static final String SYSTEM_USER = "system";
+
     private final CustomerRepository customerRepository;
     private final EntityManager entityManager;
     private final PaginationProperties paginationProperties;
+    private final AuditorAware<String> auditorAware;
 
     @Transactional
     void create(@NotNull final CustomerRequestDto request) {
@@ -66,6 +72,16 @@ public class CustomerService implements SearchService<CustomerDto> {
         customer.setEmail(request.email());
         final Customer saved = customerRepository.save(customer);
         log.info("Customer updated: id={}", saved.getId());
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
+    void delete(@NotNull final UUID id) {
+        final Customer customer = findByIdOrThrow(id);
+        customer.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
+        customer.setDeletedBy(auditorAware.getCurrentAuditor().orElse(SYSTEM_USER));
+        customerRepository.save(customer);
+        log.info("Customer deleted: id={}", id);
     }
 
     @Override

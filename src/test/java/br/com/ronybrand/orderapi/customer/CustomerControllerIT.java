@@ -229,4 +229,46 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("TAX-0018");
     }
+
+    @Test
+    void delete_ShouldReturn204_WhenCallerIsAdmin() {
+        final Customer customer = customerRepository.save(
+                Customer.builder().name("Ada Lovelace").taxId("TAX-0019").email("ada@example.com").build());
+
+        final ResponseEntity<Void> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.DELETE,
+                request(authHeadersForAdmin()), Void.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void delete_ShouldReturn404OnSubsequentFindById_AfterDeleting() {
+        final Customer customer = customerRepository.save(
+                Customer.builder().name("Ada Lovelace").taxId("TAX-0020").email("ada@example.com").build());
+
+        restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.DELETE, request(authHeadersForAdmin()), Void.class);
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.GET,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void delete_ShouldReturn403_WhenCallerIsNotAdmin() {
+        final Customer customer = customerRepository.save(
+                Customer.builder().name("Ada Lovelace").taxId("TAX-0021").email("ada@example.com").build());
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.DELETE,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void delete_ShouldReturn404_WhenNotExists() {
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + UUID.randomUUID(), HttpMethod.DELETE,
+                request(authHeadersForAdmin()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
 }
