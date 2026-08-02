@@ -1,27 +1,35 @@
 package br.com.ronybrand.orderapi.order;
 
+import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
+import br.com.ronybrand.orderapi.commons.filter.SearchService;
+import br.com.ronybrand.orderapi.commons.filter.SearchUtils;
 import br.com.ronybrand.orderapi.customer.Customer;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
+import jakarta.persistence.EntityManager;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.AuditorAware;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class OrderService {
+public class OrderService implements SearchService<OrderResponseDto> {
 
     private static final String SYSTEM_USER = "system";
 
@@ -29,6 +37,8 @@ public class OrderService {
     private final CustomerRepository customerRepository;
     private final AuditorAware<String> auditorAware;
     private final ApplicationEventPublisher eventPublisher;
+    private final EntityManager entityManager;
+    private final PaginationProperties paginationProperties;
 
     /**
      * customerId that doesn't resolve to an existing customer is a 400
@@ -162,6 +172,14 @@ public class OrderService {
         publishStatusChangedEvent(saved, previousStatus, OrderStatus.CANCELED);
         log.info("Order canceled: id={}", id);
         return OrderResponseDto.from(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrderResponseDto> search(final Map<String, List<String>> filters, final String order, final int page, final int size) {
+        final Sort sort = SearchUtils.buildSort(order, entityManager.getMetamodel(), Order.class);
+        final Pageable pageable = SearchUtils.buildPageable(page, size, paginationProperties.maxSize(), sort);
+        return orderRepository.findAll(OrderSpecification.byCriteria(filters), pageable).map(OrderResponseDto::from);
     }
 
     private void publishStatusChangedEvent(final Order order, final OrderStatus oldStatus, final OrderStatus newStatus) {

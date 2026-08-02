@@ -325,4 +325,35 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION.getCode());
     }
+
+    @Test
+    void search_ShouldReturn200WithFilteredResults() {
+        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.CANCELED).total(BigDecimal.ZERO).build());
+
+        final ResponseEntity<String> response = restTemplate.exchange("/orders/search?filter[status]=OPEN", HttpMethod.GET,
+                request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("\"status\":\"OPEN\"").doesNotContain("\"status\":\"CANCELED\"");
+    }
+
+    @Test
+    void search_ShouldReturn400_WhenSortFieldIsInvalid() {
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/search?order=notAField", HttpMethod.GET,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_INVALID_SORT_FIELD.getCode());
+    }
+
+    @Test
+    void search_ShouldIgnoreFilterOnAssociationField_Silently() {
+        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+
+        final ResponseEntity<String> response = restTemplate.exchange("/orders/search?filter[customer]=x", HttpMethod.GET,
+                request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
 }

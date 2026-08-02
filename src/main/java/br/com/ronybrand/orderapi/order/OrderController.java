@@ -1,14 +1,17 @@
 package br.com.ronybrand.orderapi.order;
 
 import br.com.ronybrand.orderapi.commons.api.Constants;
+import br.com.ronybrand.orderapi.commons.filter.SearchControllerSupport;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Validated
@@ -24,9 +28,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/orders")
 @RequiredArgsConstructor
 @Tag(name = "Orders")
-public class OrderController {
+public class OrderController implements SearchControllerSupport<OrderResponseDto> {
 
     private final OrderService orderService;
+
+    /**
+     * Same filter syntax as {@code /customers/search} - see
+     * {@link br.com.ronybrand.orderapi.customer.CustomerController#search}.
+     */
+    @GetMapping("/search")
+    @PreAuthorize(Constants.HAS_ROLE_USER)
+    @Operation(summary = "Search orders", operationId = "searchOrders")
+    public ResponseEntity<Page<OrderResponseDto>> search(@RequestParam final MultiValueMap<String, String> allParams,
+            @RequestParam(required = false) final String order,
+            @RequestParam(required = false, defaultValue = "0") final int page,
+            @RequestParam(required = false, defaultValue = "20") final int size) {
+        return doSearchByGetMethod(allParams, order, page, size, orderService);
+    }
 
     /**
      * @throws br.com.ronybrand.orderapi.commons.exception.InvalidInputException if customerId does not exist or the item list exceeds 200 items

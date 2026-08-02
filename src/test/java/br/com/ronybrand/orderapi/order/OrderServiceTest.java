@@ -8,11 +8,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
 import br.com.ronybrand.orderapi.customer.Customer;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +31,10 @@ class OrderServiceTest {
     @SuppressWarnings("unchecked")
     private final AuditorAware<String> auditorAware = mock(AuditorAware.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-    private final OrderService service = new OrderService(orderRepository, customerRepository, auditorAware, eventPublisher);
+    private final EntityManager entityManager = mock(EntityManager.class);
+    private final PaginationProperties paginationProperties = new PaginationProperties(0, 20, 100);
+    private final OrderService service =
+            new OrderService(orderRepository, customerRepository, auditorAware, eventPublisher, entityManager, paginationProperties);
 
     private static ItemRequestDto item(final String description, final String unitPrice, final int quantity) {
         return new ItemRequestDto(description, new BigDecimal(unitPrice), quantity);
