@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.AuditorAware;
 
 class OrderServiceTest {
@@ -26,7 +28,8 @@ class OrderServiceTest {
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
     @SuppressWarnings("unchecked")
     private final AuditorAware<String> auditorAware = mock(AuditorAware.class);
-    private final OrderService service = new OrderService(orderRepository, customerRepository, auditorAware);
+    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final OrderService service = new OrderService(orderRepository, customerRepository, auditorAware, eventPublisher);
 
     private static ItemRequestDto item(final String description, final String unitPrice, final int quantity) {
         return new ItemRequestDto(description, new BigDecimal(unitPrice), quantity);
@@ -234,5 +237,81 @@ class OrderServiceTest {
         assertThatThrownBy(() -> service.removeItem(order.getId(), existingItem.getId()))
                 .isInstanceOf(InvalidInputException.class);
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void confirm_ShouldChangeStatusToConfirmed_WhenOpenAndHasItems() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        final OrderResponseDto result = service.confirm(order.getId());
+
+        assertThat(result.status()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    void confirm_ShouldThrowInvalidInputException_WhenAlreadyConfirmed() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        order.setStatus(OrderStatus.CONFIRMED);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.confirm(order.getId()))
+                .isInstanceOf(InvalidInputException.class)
+                .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void confirm_ShouldThrowInvalidInputException_WhenAlreadyCanceled() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        order.setStatus(OrderStatus.CANCELED);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.confirm(order.getId())).isInstanceOf(InvalidInputException.class);
+    }
+
+    @Test
+    void confirm_ShouldThrowInvalidInputException_WhenNoItems() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.confirm(order.getId()))
+                .isInstanceOf(InvalidInputException.class)
+                .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_ORDER_EMPTY));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void confirm_ShouldPublishEvent_WhenCustomerHasEmail() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.confirm(order.getId());
+
+        final ArgumentCaptor<OrderStatusChangedEvent> captor = ArgumentCaptor.forClass(OrderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().newStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(captor.getValue().oldStatus()).isEqualTo(OrderStatus.OPEN);
+    }
+
+    @Test
+    void confirm_ShouldNotPublishEvent_WhenCustomerEmailIsBlank() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        order.getCustomer().setEmail("");
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.confirm(order.getId());
+
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

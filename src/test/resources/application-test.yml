@@ -8,3 +8,13 @@ app:
     rate-limit:
       max-requests-per-window: 100000
       window-seconds: 60
+
+spring:
+  rabbitmq:
+    listener:
+      simple:
+        # No RabbitMQ broker is guaranteed to be running for every *IT execution (e.g. CI); the
+        # consumer side (retry/DLQ contract) is covered by OrderNotificationRabbitListenerTest
+        # instead, which needs no broker. The producer side (OrderStatusEventListener) still
+        # attempts to publish and simply logs a warning if unreachable - see its try/catch.
+        auto-startup: false

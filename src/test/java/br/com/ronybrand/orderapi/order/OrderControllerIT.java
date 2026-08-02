@@ -247,4 +247,44 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
+
+    @Test
+    void confirm_ShouldReturn200_WhenOpenAndHasItems() {
+        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
+        order.calculateTotal();
+        order = orderRepository.save(order);
+
+        final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST,
+                request(authHeadersForUser()), OrderResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().status()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    void confirm_ShouldReturn400_WhenOrderHasNoItems() {
+        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_ORDER_EMPTY.getCode());
+    }
+
+    @Test
+    void confirm_ShouldReturn400_WhenAlreadyConfirmed() {
+        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
+        order.calculateTotal();
+        order = orderRepository.save(order);
+        restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST, request(authHeadersForUser()), OrderResponseDto.class);
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION.getCode());
+    }
 }

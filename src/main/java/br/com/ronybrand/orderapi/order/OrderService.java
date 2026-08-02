@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final AuditorAware<String> auditorAware;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * customerId that doesn't resolve to an existing customer is a 400
@@ -117,6 +120,36 @@ public class OrderService {
         final Order saved = orderRepository.save(order);
         log.info("Item removed from order: orderId={}, itemId={}", orderId, itemId);
         return OrderResponseDto.from(saved);
+    }
+
+    /**
+     * @throws InvalidInputException if the order is not OPEN (invalid transition) or has no items
+     */
+    @Transactional
+    OrderResponseDto confirm(@NotNull final UUID id) {
+        final Order order = findByIdOrThrow(id);
+        if (order.getStatus() != OrderStatus.OPEN) {
+            throw new InvalidInputException("Invalid status transition", ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION);
+        }
+        if (order.getItems().isEmpty()) {
+            throw new InvalidInputException("Order has no items", ErrorCode.VALIDATION_ORDER_EMPTY);
+        }
+
+        final OrderStatus previousStatus = order.getStatus();
+        order.setStatus(OrderStatus.CONFIRMED);
+        final Order saved = orderRepository.save(order);
+        publishStatusChangedEvent(saved, previousStatus, OrderStatus.CONFIRMED);
+        log.info("Order confirmed: id={}", id);
+        return OrderResponseDto.from(saved);
+    }
+
+    private void publishStatusChangedEvent(final Order order, final OrderStatus oldStatus, final OrderStatus newStatus) {
+        final Customer customer = order.getCustomer();
+        if (StringUtils.isBlank(customer.getEmail())) {
+            return;
+        }
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(order.getId(), customer.getEmail(), customer.getName(),
+                oldStatus, newStatus, order.getTotal(), LocalDateTime.now(ZoneOffset.UTC)));
     }
 
     private void ensureEditable(final Order order) {

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Order status updated</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f5; margin: 0; padding: 24px;">
+    <table role="presentation" style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden;">
+        <tr>
+            <td style="padding: 24px;">
+                <h1 style="font-size: 18px; color: #1f2937; margin: 0 0 16px;">Hello, <span th:text="${event.customerName}">Customer</span></h1>
+                <p style="font-size: 14px; color: #374151;">
+                    The status of your order <strong th:text="${event.orderId}">order-id</strong> has changed:
+                </p>
+                <p style="font-size: 14px; color: #374151;">
+                    <span th:text="${event.oldStatus}">OLD</span>
+                    &rarr;
+                    <span style="font-weight: bold;"
+                          th:classappend="${event.newStatus.name() == 'CONFIRMED'} ? 'status-confirmed' : (${event.newStatus.name() == 'CANCELED'} ? 'status-canceled' : 'status-open')"
+                          th:text="${event.newStatus}">NEW</span>
+                </p>
+                <p style="font-size: 14px; color: #374151;">
+                    Total: <strong th:text="${event.totalAmount}">0.00</strong>
+                </p>
+                <p style="font-size: 12px; color: #9ca3af; margin-top: 24px;" th:text="${event.changedAt}">timestamp</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

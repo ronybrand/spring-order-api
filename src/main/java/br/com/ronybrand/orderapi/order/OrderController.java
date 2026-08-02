@@ -93,4 +93,15 @@ public class OrderController {
     public ResponseEntity<OrderResponseDto> removeItem(@PathVariable final UUID orderId, @PathVariable final UUID itemId) {
         return ResponseEntity.ok(orderService.removeItem(orderId, itemId));
     }
+
+    /**
+     * @throws br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException if the order does not exist
+     * @throws br.com.ronybrand.orderapi.commons.exception.InvalidInputException if the order is not OPEN, or has no items
+     */
+    @PostMapping("/{id}/confirm")
+    @PreAuthorize(Constants.HAS_ROLE_USER)
+    @Operation(summary = "Confirm an order", operationId = "confirmOrder")
+    public ResponseEntity<OrderResponseDto> confirm(@PathVariable final UUID id) {
+        return ResponseEntity.ok(orderService.confirm(id));
+    }
 }

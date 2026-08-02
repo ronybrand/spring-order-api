@@ -27,6 +27,20 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${OAUTH2_ISSUER_URI:http://localhost:8085/realms/orderapi}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
 
 app:
   pagination:
@@ -42,6 +56,8 @@ app:
     rate-limit:
       max-requests-per-window: 120
       window-seconds: 60
+  notification:
+    from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@order-api.dev}
 
 springdoc:
   api-docs:
