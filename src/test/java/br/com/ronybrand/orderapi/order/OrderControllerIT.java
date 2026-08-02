@@ -53,6 +53,17 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
                         .build());
     }
 
+    private Order saveOrder(final OrderStatus status) {
+        return orderRepository.save(Order.builder().customer(customer).status(status).total(BigDecimal.ZERO).build());
+    }
+
+    private Order saveOrderWithOneItem(final OrderStatus status) {
+        final Order order = saveOrder(status);
+        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
+        order.calculateTotal();
+        return orderRepository.save(order);
+    }
+
     @Test
     void create_ShouldReturn201WithCalculatedTotal_WhenCallerIsUser() {
         final OrderCreateRequestDto request = new OrderCreateRequestDto(customer.getId(),
@@ -124,7 +135,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void findById_ShouldReturn200_WhenExists() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.OPEN);
 
         final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId(), HttpMethod.GET,
                 request(authHeadersForUser()), OrderResponseDto.class);
@@ -144,7 +155,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void delete_ShouldReturn204AndExcludeFromSubsequentFindById() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.OPEN);
 
         final ResponseEntity<Void> deleteResponse = restTemplate.exchange("/orders/" + order.getId(), HttpMethod.DELETE,
                 request(authHeadersForUser()), Void.class);
@@ -165,7 +176,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void addItem_ShouldReturn201AndRecalculateTotal_WhenOrderIsOpen() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.OPEN);
         final ItemRequestDto request = new ItemRequestDto("Widget", new BigDecimal("10.00"), 2);
 
         final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/items", HttpMethod.POST,
@@ -177,7 +188,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void addItem_ShouldReturn400_WhenOrderIsNotOpen() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.CONFIRMED).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.CONFIRMED);
         final ItemRequestDto request = new ItemRequestDto("Widget", new BigDecimal("10.00"), 2);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/items", HttpMethod.POST,
@@ -189,10 +200,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void updateItemQuantity_ShouldReturn200AndRecalculateTotal_WhenOrderIsOpen() {
-        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
-        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
-        order.calculateTotal();
-        order = orderRepository.save(order);
+        final Order order = saveOrderWithOneItem(OrderStatus.OPEN);
         final UUID itemId = order.getItems().getFirst().getId();
         final ItemQuantityUpdateRequestDto request = new ItemQuantityUpdateRequestDto(4);
 
@@ -205,7 +213,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void updateItemQuantity_ShouldReturn404_WhenItemDoesNotBelongToOrder() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.OPEN);
         final ItemQuantityUpdateRequestDto request = new ItemQuantityUpdateRequestDto(4);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange(
@@ -218,10 +226,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void removeItem_ShouldReturn200AndRecalculateTotal_WhenOrderIsOpen() {
-        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
-        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
-        order.calculateTotal();
-        order = orderRepository.save(order);
+        final Order order = saveOrderWithOneItem(OrderStatus.OPEN);
         final UUID itemId = order.getItems().getFirst().getId();
 
         final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/items/" + itemId,
@@ -234,10 +239,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void removeItem_ShouldReturn400_WhenOrderIsNotOpen() {
-        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
-        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
-        order.calculateTotal();
-        order = orderRepository.save(order);
+        final Order order = saveOrderWithOneItem(OrderStatus.OPEN);
         final UUID itemId = order.getItems().getFirst().getId();
         order.setStatus(OrderStatus.CANCELED);
         orderRepository.save(order);
@@ -250,10 +252,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void confirm_ShouldReturn200_WhenOpenAndHasItems() {
-        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
-        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
-        order.calculateTotal();
-        order = orderRepository.save(order);
+        final Order order = saveOrderWithOneItem(OrderStatus.OPEN);
 
         final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST,
                 request(authHeadersForUser()), OrderResponseDto.class);
@@ -264,7 +263,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void confirm_ShouldReturn400_WhenOrderHasNoItems() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.OPEN);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST,
                 request(authHeadersForUser()), ErrorResponseDto.class);
@@ -275,10 +274,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void confirm_ShouldReturn400_WhenAlreadyConfirmed() {
-        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
-        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
-        order.calculateTotal();
-        order = orderRepository.save(order);
+        final Order order = saveOrderWithOneItem(OrderStatus.OPEN);
         restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST, request(authHeadersForUser()), OrderResponseDto.class);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST,
@@ -290,7 +286,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void cancel_ShouldReturn200_WhenOpen() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.OPEN);
 
         final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST,
                 request(authHeadersForUser()), OrderResponseDto.class);
@@ -301,10 +297,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void cancel_ShouldReturn200_WhenConfirmed() {
-        Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
-        order.getItems().add(Item.builder().order(order).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build());
-        order.calculateTotal();
-        order = orderRepository.save(order);
+        final Order order = saveOrderWithOneItem(OrderStatus.OPEN);
         restTemplate.exchange("/orders/" + order.getId() + "/confirm", HttpMethod.POST, request(authHeadersForUser()), OrderResponseDto.class);
 
         final ResponseEntity<OrderResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST,
@@ -316,7 +309,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void cancel_ShouldReturn400_WhenAlreadyCanceled() {
-        final Order order = orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        final Order order = saveOrder(OrderStatus.OPEN);
         restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST, request(authHeadersForUser()), OrderResponseDto.class);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/orders/" + order.getId() + "/cancel", HttpMethod.POST,
@@ -328,8 +321,8 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void search_ShouldReturn200WithFilteredResults() {
-        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
-        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.CANCELED).total(BigDecimal.ZERO).build());
+        saveOrder(OrderStatus.OPEN);
+        saveOrder(OrderStatus.CANCELED);
 
         final ResponseEntity<String> response = restTemplate.exchange("/orders/search?filter[status]=OPEN", HttpMethod.GET,
                 request(authHeadersForUser()), String.class);
@@ -349,7 +342,7 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void search_ShouldIgnoreFilterOnAssociationField_Silently() {
-        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        saveOrder(OrderStatus.OPEN);
 
         final ResponseEntity<String> response = restTemplate.exchange("/orders/search?filter[customer]=x", HttpMethod.GET,
                 request(authHeadersForUser()), String.class);

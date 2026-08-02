@@ -28,6 +28,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -62,7 +63,11 @@ public class Order {
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
 
+    // @BatchSize avoids N+1 when a page of orders is mapped to OrderResponseDto (each row's
+    // lazy items collection would otherwise trigger its own query) - Hibernate loads items for
+    // up to 20 orders per IN-clause batch instead of one query per order.
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 20)
     @Builder.Default
     private List<Item> items = new ArrayList<>();
 

@@ -3,6 +3,7 @@ package br.com.ronybrand.orderapi.order;
 import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
+import br.com.ronybrand.orderapi.commons.exception.RepositoryLookups;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
 import br.com.ronybrand.orderapi.commons.filter.SearchService;
 import br.com.ronybrand.orderapi.commons.filter.SearchUtils;
@@ -205,7 +206,6 @@ public class OrderService implements SearchService<OrderResponseDto> {
     }
 
     private Order findByIdOrThrow(final UUID id) {
-        return orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found", ErrorCode.RESOURCE_NOT_FOUND_ORDER));
+        return RepositoryLookups.getOrThrow(orderRepository, id, ErrorCode.RESOURCE_NOT_FOUND_ORDER, "Order not found");
     }
 }

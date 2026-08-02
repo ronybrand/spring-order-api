@@ -5,7 +5,7 @@ import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ConflictException;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
-import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
+import br.com.ronybrand.orderapi.commons.exception.RepositoryLookups;
 import br.com.ronybrand.orderapi.commons.filter.SearchService;
 import br.com.ronybrand.orderapi.commons.filter.SearchUtils;
 import br.com.ronybrand.orderapi.order.OrderRepository;
@@ -100,8 +100,7 @@ public class CustomerService implements SearchService<CustomerDto> {
     }
 
     private Customer findByIdOrThrow(final UUID id) {
-        return customerRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer not found", ErrorCode.RESOURCE_NOT_FOUND_CUSTOMER));
+        return RepositoryLookups.getOrThrow(customerRepository, id, ErrorCode.RESOURCE_NOT_FOUND_CUSTOMER, "Customer not found");
     }
 
     private void ensureTaxIdIsUnique(final String taxId, final UUID excludeId) {
