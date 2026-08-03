@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.exceptions.TemplateInputException;
 
 class EmailServiceTest {
 
@@ -33,6 +34,17 @@ class EmailServiceTest {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
         when(templateEngine.process(anyString(), any())).thenReturn("<html></html>");
         doThrow(new MailSendException("SMTP unavailable")).when(mailSender).send(any(MimeMessage.class));
+        final OrderStatusChangedEvent event = new OrderStatusChangedEvent(UUID.randomUUID(), "ada@example.com", "Ada Lovelace",
+                OrderStatus.OPEN, OrderStatus.CONFIRMED, new BigDecimal("10.00"), LocalDateTime.now());
+
+        assertThatThrownBy(() -> emailService.sendOrderStatusEmail(event)).isInstanceOf(EmailSendingException.class);
+    }
+
+    @Test
+    void sendOrderStatusEmail_ShouldThrowEmailSendingException_WhenTemplateRenderingFails() {
+        final MimeMessage mimeMessage = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        when(templateEngine.process(anyString(), any())).thenThrow(new TemplateInputException("Template not found"));
         final OrderStatusChangedEvent event = new OrderStatusChangedEvent(UUID.randomUUID(), "ada@example.com", "Ada Lovelace",
                 OrderStatus.OPEN, OrderStatus.CONFIRMED, new BigDecimal("10.00"), LocalDateTime.now());
 

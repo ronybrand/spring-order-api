@@ -10,6 +10,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import org.thymeleaf.exceptions.TemplateEngineException;
 
 @Service
 @RequiredArgsConstructor
@@ -22,8 +23,9 @@ public class EmailService {
     private final NotificationProperties notificationProperties;
 
     /**
-     * @throws EmailSendingException on any SMTP/messaging failure - classified as retryable by
-     *      {@link OrderNotificationRabbitListener}.
+     * @throws EmailSendingException on any failure to render or send the email - including
+     *      Thymeleaf template errors, not just SMTP/messaging failures - so the caller always sees
+     *      a single, retryable-classified exception type (DOMAIN.md §5).
      */
     void sendOrderStatusEmail(final OrderStatusChangedEvent event) {
         try {
@@ -38,7 +40,7 @@ public class EmailService {
             helper.setText(templateEngine.process(TEMPLATE, context), true);
 
             mailSender.send(message);
-        } catch (final MessagingException | MailException e) {
+        } catch (final MessagingException | MailException | TemplateEngineException e) {
             throw new EmailSendingException("Failed to send order status email", e);
         }
     }

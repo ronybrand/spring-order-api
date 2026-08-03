@@ -93,6 +93,11 @@ public class RabbitMQConfig {
         final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
         container.setQueueNames(QUEUE);
         container.setMessageListener(listener);
+        // Safety net: the listener always classifies its own exceptions into
+        // AmqpRejectAndDontRequeueException (retry-exhausted/malformed) or lets EmailSendingException
+        // retry in-process. Any *other* exception escaping it (e.g. an unclassified bug) must still
+        // go to the DLQ, not requeue forever on the same message (DOMAIN.md §5).
+        container.setDefaultRequeueRejected(false);
         return container;
     }
 }
