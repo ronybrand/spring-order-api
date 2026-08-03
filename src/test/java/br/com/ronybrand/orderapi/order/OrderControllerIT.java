@@ -1,6 +1,7 @@
 package br.com.ronybrand.orderapi.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.ronybrand.orderapi.AbstractAuthIntegrationTest;
 import br.com.ronybrand.orderapi.TestSecurityConfig;
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -196,6 +198,27 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_ORDER_NOT_EDITABLE.getCode());
+    }
+
+    /**
+     * Reproduces the lost-update scenario deterministically instead of racing real threads against
+     * an embedded server (which would make the assertion timing-dependent): two independent reads of
+     * the same row, one save commits and bumps {@code @Version}, the second save - built from the
+     * now-stale read - must be rejected by Hibernate rather than silently overwriting the first
+     * change (DOMAIN.md §4.10).
+     */
+    @Test
+    void save_ShouldThrowOptimisticLockingFailure_WhenOrderWasModifiedByAnotherTransactionSinceItWasRead() {
+        final Order order = saveOrder(OrderStatus.OPEN);
+        final Order firstRead = orderRepository.findById(order.getId()).orElseThrow();
+        final Order staleRead = orderRepository.findById(order.getId()).orElseThrow();
+
+        firstRead.setStatus(OrderStatus.CONFIRMED);
+        orderRepository.saveAndFlush(firstRead);
+
+        staleRead.setStatus(OrderStatus.CANCELED);
+        assertThatThrownBy(() -> orderRepository.saveAndFlush(staleRead))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 
     @Test

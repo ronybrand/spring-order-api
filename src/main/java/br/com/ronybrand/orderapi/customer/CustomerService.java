@@ -6,6 +6,7 @@ import br.com.ronybrand.orderapi.commons.exception.ConflictException;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import br.com.ronybrand.orderapi.commons.exception.RepositoryLookups;
+import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
 import br.com.ronybrand.orderapi.commons.filter.SearchService;
 import br.com.ronybrand.orderapi.commons.filter.SearchUtils;
 import br.com.ronybrand.orderapi.order.OrderRepository;
@@ -79,10 +80,16 @@ public class CustomerService implements SearchService<CustomerDto> {
         log.info("Customer updated: id={}", saved.getId());
     }
 
+    /**
+     * Locks the customer row ({@code FOR UPDATE}) before checking for active orders, so this check
+     * is atomic with the soft-delete against a concurrent {@code OrderService.create} for the same
+     * customer - see {@link CustomerRepository#findByIdForUpdate}.
+     */
     @Transactional
     @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
     void delete(@NotNull final UUID id) {
-        final Customer customer = findByIdOrThrow(id);
+        final Customer customer = customerRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found", ErrorCode.RESOURCE_NOT_FOUND_CUSTOMER));
         if (orderRepository.existsByCustomerId(id)) {
             throw new InvalidInputException("Customer has associated orders and cannot be deleted",
                     ErrorCode.VALIDATION_CUSTOMER_HAS_ORDERS);

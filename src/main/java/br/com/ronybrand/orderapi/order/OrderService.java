@@ -48,10 +48,15 @@ public class OrderService implements SearchService<OrderResponseDto> {
      * ({@link ErrorCode#VALIDATION_INVALID_CUSTOMER_ID}), not a 404 - DOMAIN.md §6 reserves
      * {@code RESOURCE_NOT_FOUND_CUSTOMER} for direct customer lookups, not for this validation of
      * the order-creation request.
+     *
+     * <p>Reads the customer with {@code FOR SHARE} ({@link CustomerRepository#findByIdForShare})
+     * rather than a plain read, so this blocks behind (and then correctly re-reads after) a
+     * concurrent {@code CustomerService.delete} for the same customer instead of racing it -
+     * DOMAIN.md §4.8.
      */
     @Transactional
     OrderResponseDto create(@NotNull final UUID customerId, @NotNull final List<ItemRequestDto> itemRequests) {
-        final Customer customer = customerRepository.findById(customerId)
+        final Customer customer = customerRepository.findByIdForShare(customerId)
                 .orElseThrow(() -> new InvalidInputException("customerId does not exist", ErrorCode.VALIDATION_INVALID_CUSTOMER_ID));
 
         final Order order = Order.builder()

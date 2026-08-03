@@ -184,7 +184,7 @@ class CustomerServiceTest {
     void delete_ShouldSoftDeleteCustomer_WhenExists() {
         final UUID id = UUID.randomUUID();
         final Customer existing = Customer.builder().id(id).name("Ada Lovelace").taxId("TAX-12345").email("ada@example.com").build();
-        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByIdForUpdate(id)).thenReturn(Optional.of(existing));
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("admin-user"));
 
@@ -198,7 +198,7 @@ class CustomerServiceTest {
     @Test
     void delete_ShouldThrowResourceNotFoundException_WhenNotExists() {
         final UUID id = UUID.randomUUID();
-        when(customerRepository.findById(id)).thenReturn(Optional.empty());
+        when(customerRepository.findByIdForUpdate(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(id)).isInstanceOf(ResourceNotFoundException.class);
         verify(customerRepository, never()).save(any());
@@ -208,7 +208,7 @@ class CustomerServiceTest {
     void delete_ShouldThrowInvalidInputException_WhenCustomerHasActiveOrders() {
         final UUID id = UUID.randomUUID();
         final Customer existing = Customer.builder().id(id).name("Ada Lovelace").taxId("TAX-12345").email("ada@example.com").build();
-        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByIdForUpdate(id)).thenReturn(Optional.of(existing));
         when(orderRepository.existsByCustomerId(id)).thenReturn(true);
 
         assertThatThrownBy(() -> service.delete(id))
@@ -222,7 +222,7 @@ class CustomerServiceTest {
     void delete_ShouldSucceed_WhenCustomerHasNoActiveOrders() {
         final UUID id = UUID.randomUUID();
         final Customer existing = Customer.builder().id(id).name("Ada Lovelace").taxId("TAX-12345").email("ada@example.com").build();
-        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByIdForUpdate(id)).thenReturn(Optional.of(existing));
         when(orderRepository.existsByCustomerId(id)).thenReturn(false);
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("admin-user"));

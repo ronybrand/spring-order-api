@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.AuditorAware;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 class OrderServiceTest {
 
@@ -44,7 +45,7 @@ class OrderServiceTest {
     void create_ShouldPersistOrderWithCalculatedTotal_WhenDataIsValid() {
         final UUID customerId = UUID.randomUUID();
         final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.of(customer));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         final OrderResponseDto result = service.create(customerId, List.of(item("Widget", "10.00", 3), item("Gadget", "5.50", 2)));
@@ -56,7 +57,7 @@ class OrderServiceTest {
     @Test
     void create_ShouldThrowInvalidInputException_WhenCustomerIdDoesNotExist() {
         final UUID customerId = UUID.randomUUID();
-        when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
+        when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(customerId, List.of()))
                 .isInstanceOf(InvalidInputException.class)
@@ -68,7 +69,7 @@ class OrderServiceTest {
     void create_ShouldDefaultStatusToOpen() {
         final UUID customerId = UUID.randomUUID();
         final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.of(customer));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         final OrderResponseDto result = service.create(customerId, List.of());
@@ -80,7 +81,7 @@ class OrderServiceTest {
     void create_ShouldSucceed_WhenItemListIsEmpty() {
         final UUID customerId = UUID.randomUUID();
         final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.of(customer));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         final OrderResponseDto result = service.create(customerId, List.of());
@@ -93,7 +94,7 @@ class OrderServiceTest {
     void create_ShouldLinkEachItemToTheOrder() {
         final UUID customerId = UUID.randomUUID();
         final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.of(customer));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         final OrderResponseDto result = service.create(customerId, List.of(item("Widget", "10.00", 1)));
@@ -367,5 +368,65 @@ class OrderServiceTest {
         final ArgumentCaptor<OrderStatusChangedEvent> captor = ArgumentCaptor.forClass(OrderStatusChangedEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().newStatus()).isEqualTo(OrderStatus.CANCELED);
+    }
+
+    @Test
+    void addItem_ShouldPropagateOptimisticLockingFailure_WhenOrderWasModifiedConcurrently() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+
+        assertThatThrownBy(() -> service.addItem(order.getId(), item("Widget", "10.00", 1)))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+    }
+
+    @Test
+    void updateItemQuantity_ShouldPropagateOptimisticLockingFailure_WhenOrderWasModifiedConcurrently() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+
+        assertThatThrownBy(() -> service.updateItemQuantity(order.getId(), existingItem.getId(), 5))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+    }
+
+    @Test
+    void removeItem_ShouldPropagateOptimisticLockingFailure_WhenOrderWasModifiedConcurrently() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+
+        assertThatThrownBy(() -> service.removeItem(order.getId(), existingItem.getId()))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+    }
+
+    @Test
+    void confirm_ShouldPropagateOptimisticLockingFailure_AndNotPublishEvent_WhenOrderWasModifiedConcurrently() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+
+        assertThatThrownBy(() -> service.confirm(order.getId()))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void cancel_ShouldPropagateOptimisticLockingFailure_AndNotPublishEvent_WhenOrderWasModifiedConcurrently() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+
+        assertThatThrownBy(() -> service.cancel(order.getId()))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }
