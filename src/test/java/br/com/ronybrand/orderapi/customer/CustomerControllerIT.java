@@ -39,10 +39,13 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
     @Autowired
     private OrderTestCleanupRepository orderTestCleanupRepository;
 
+    @Autowired
+    private CustomerTestCleanupRepository customerTestCleanupRepository;
+
     @BeforeEach
     void cleanUp() {
         orderTestCleanupRepository.deleteAllHard();
-        customerRepository.deleteAll();
+        customerTestCleanupRepository.deleteAllHard();
     }
 
     @Test
