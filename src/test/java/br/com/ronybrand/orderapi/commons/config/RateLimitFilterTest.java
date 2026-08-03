@@ -16,7 +16,7 @@ class RateLimitFilterTest {
 
     @Test
     void doFilterInternal_ShouldAllowRequests_WithinLimit() throws Exception {
-        final RateLimitFilter filter = new RateLimitFilter(3, 60);
+        final RateLimitFilter filter = new RateLimitFilter(3, 60, "");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
         final FilterChain chain = mock(FilterChain.class);
@@ -32,7 +32,7 @@ class RateLimitFilterTest {
 
     @Test
     void doFilterInternal_ShouldReject429_WhenLimitExceededWithinWindow() throws Exception {
-        final RateLimitFilter filter = new RateLimitFilter(2, 60);
+        final RateLimitFilter filter = new RateLimitFilter(2, 60, "");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
         final FilterChain chain = mock(FilterChain.class);
@@ -49,7 +49,7 @@ class RateLimitFilterTest {
 
     @Test
     void doFilterInternal_ShouldPartitionCounters_ByClientIp() throws Exception {
-        final RateLimitFilter filter = new RateLimitFilter(1, 60);
+        final RateLimitFilter filter = new RateLimitFilter(1, 60, "");
         final HttpServletRequest requestA = mock(HttpServletRequest.class);
         final HttpServletRequest requestB = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
@@ -65,8 +65,8 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldPreferForwardedForFirstHop_OverRemoteAddr() throws Exception {
-        final RateLimitFilter filter = new RateLimitFilter(1, 60);
+    void doFilterInternal_ShouldPreferForwardedForFirstHop_WhenRemoteAddrIsATrustedProxy() throws Exception {
+        final RateLimitFilter filter = new RateLimitFilter(1, 60, "10.0.0.1");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
         final FilterChain chain = mock(FilterChain.class);
@@ -77,6 +77,25 @@ class RateLimitFilterTest {
         filter.doFilterInternal(request, response, chain);
 
         verify(chain, times(1)).doFilter(request, response);
+        verify(response).setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+    }
+
+    @Test
+    void doFilterInternal_ShouldIgnoreForwardedFor_WhenRemoteAddrIsNotATrustedProxy() throws Exception {
+        final RateLimitFilter filter = new RateLimitFilter(1, 60, "");
+        final HttpServletRequest firstRequest = mock(HttpServletRequest.class);
+        final HttpServletRequest secondRequest = mock(HttpServletRequest.class);
+        final HttpServletResponse response = mock(HttpServletResponse.class);
+        final FilterChain chain = mock(FilterChain.class);
+        when(firstRequest.getRemoteAddr()).thenReturn("10.0.0.5");
+        when(firstRequest.getHeader("X-Forwarded-For")).thenReturn("1.1.1.1");
+        when(secondRequest.getRemoteAddr()).thenReturn("10.0.0.5");
+        when(secondRequest.getHeader("X-Forwarded-For")).thenReturn("2.2.2.2");
+
+        filter.doFilterInternal(firstRequest, response, chain);
+        filter.doFilterInternal(secondRequest, response, chain);
+
+        verify(chain, times(1)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(response));
         verify(response).setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
     }
 }
