@@ -50,9 +50,9 @@ código existente.
 ## Baseline de segurança (não desativar por acidente)
 
 - [ ] Security headers, rate limiting, limite de tamanho de request, validação de `aud` do JWT e CORS fail-fast em produção permanecem ativos; nenhuma dessas proteções foi desabilitada ou contornada para viabilizar uma implementação ou teste.
-- [ ] Swagger/OpenAPI continua desabilitado fora do profile `dev`.
+- [ ] Swagger/OpenAPI continua desabilitado fora do profile `dev` (garantido por `SwaggerDisabledByDefaultTest`, que lê `application.yml` de verdade - não depende só de revisão manual).
 - [ ] Segredos, chaves, tokens e connection strings nunca são commitados em código, `application.yml` versionado ou migrations; utilizar exclusivamente variáveis de ambiente ou secret manager.
-- [ ] Dados sensíveis nunca aparecem em `log.info`, `log.warn` ou `log.error` em texto claro (incluindo payloads de erro de validação) e não são expostos em `ResponseDto` sem necessidade real. Campos anotados com `@Sensitive` devem utilizar exclusivamente a infraestrutura centralizada de mascaramento (`SensitiveDataMasker`, `SensitiveFieldsModule`).
+- [ ] Dados sensíveis nunca aparecem em `log.info`, `log.warn` ou `log.error` em texto claro (incluindo payloads de erro de validação) e não são expostos em `ResponseDto` sem necessidade real. Campos anotados com `@Sensitive` devem utilizar exclusivamente a infraestrutura centralizada de mascaramento (`SensitiveDataMasker`, `SensitiveFieldsModule`) - isso continua sendo responsabilidade do autor da feature, não é automático. `logback.xml` aplica uma rede de segurança adicional (regex sobre padrões conhecidos - JWT, e-mail, CPF) em toda mensagem/stack trace logada, cobrindo o caso de uma exceção arbitrária carregar dado sensível na mensagem (ex. `GlobalExceptionHandler#handleUnexpected`), mas não substitui o cuidado com `@Sensitive` em campos estruturados nem cobre padrões fora da lista.
 
 ## Antes de considerar a mudança pronta
 

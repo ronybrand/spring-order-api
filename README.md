@@ -1,5 +1,7 @@
 # spring-order-api
 
+[![CI](https://github.com/ronybrand/spring-order-api/actions/workflows/ci.yml/badge.svg)](https://github.com/ronybrand/spring-order-api/actions/workflows/ci.yml)
+
 API de gestão de pedidos (Customer / Order / Item) em Spring Boot, especificada em
 [`DOMAIN.md`](./DOMAIN.md) e construída em casos de uso completos por recurso, seguindo as
 convenções documentadas em `AGENTS.md` e na skill `spring-feature` (local, não versionada - ver
@@ -42,6 +44,10 @@ automaticamente ainda. Para testar manualmente contra o servidor real (os testes
 ./mvnw test      # unitário (*Test, sem Docker)
 ./mvnw verify    # unitário + integração (*IT, Postgres real via Testcontainers) + PMD + JaCoCo
 ```
+
+`./mvnw verify` roda automaticamente em CI (GitHub Actions) a cada push/PR na `main` - ver
+`.github/workflows/ci.yml`. Gate de cobertura JaCoCo: 80% linha / 65% branch (exclui
+`commons/config` e a classe de bootstrap, que são wiring de framework, não lógica de negócio).
 
 ## Estrutura
 
