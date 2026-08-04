@@ -27,6 +27,7 @@ Fora de escopo: pagamento, estoque, catálogo de produtos, envio/frete.
 | `taxId` | string | obrigatório, **único**, 5–20 chars, padrão `^[A-Za-z0-9./-]{5,20}$` |
 | `passportNumber` | string | opcional, **único** quando presente, padrão ICAO `^[A-Z0-9]{6,9}$` |
 | `email` | string | obrigatório, padrão `^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$` |
+| `marketingOptIn` | boolean | opcional, default `false` — aceite de comunicação de marketing, sem relação com `deletedAt`/soft-delete |
 | `createdAt`, `updatedAt` | datetime | auditoria |
 | `createdBy`, `updatedBy` | string | auditoria (usuário ou "system") |
 | `deletedAt`, `deletedBy` | datetime / string | soft-delete (nulo = ativo) |
@@ -164,6 +165,7 @@ Categorias e códigos, mapeáveis para exceções/HTTP status em qualquer stack:
 ### Customer
 - `create(dados)` → valida unicidade de taxId/passportNumber.
 - `update(id, dados)` → valida unicidade excluindo o próprio registro.
+- `updateMarketingOptIn(id, valor)` → atualiza somente o flag `marketingOptIn`, sem revalidar unicidade de taxId/passportNumber.
 - `delete(id)` → bloqueia se houver orders associados; soft-delete.
 - `findById(id)`
 - `search(filtros, ordenação, paginação)`
@@ -194,4 +196,5 @@ Apenas como referência de contrato — não é obrigatório replicar a mesma te
 | GET | `/customers/search` | Buscar customers (query params) |
 | GET | `/customers/{id}` | Obter customer por id |
 | PUT | `/customers/{id}` | Atualizar customer (admin) |
+| PATCH | `/customers/{id}/marketing-opt-in` | Atualizar somente o opt-in de marketing (admin) |
 | DELETE | `/customers/{id}` | Excluir (soft) customer (admin) |

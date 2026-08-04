@@ -7,5 +7,6 @@
 
     <include file="db/changelog/001-create-customer-schema.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/002-create-order-schema.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/003-add-marketing-opt-in-to-customer.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

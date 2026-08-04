@@ -9,6 +9,7 @@ public record CustomerDto(
         String taxId,
         String passportNumber,
         String email,
+        boolean marketingOptIn,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
@@ -19,6 +20,7 @@ public record CustomerDto(
                 customer.getTaxId(),
                 customer.getPassportNumber(),
                 customer.getEmail(),
+                customer.isMarketingOptIn(),
                 customer.getCreatedAt(),
                 customer.getUpdatedAt());
     }

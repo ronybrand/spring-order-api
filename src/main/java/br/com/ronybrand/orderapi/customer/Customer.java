@@ -59,6 +59,9 @@ public class Customer {
     @Column(nullable = false)
     private String email;
 
+    @Column(name = "marketing_opt_in", nullable = false)
+    private boolean marketingOptIn;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

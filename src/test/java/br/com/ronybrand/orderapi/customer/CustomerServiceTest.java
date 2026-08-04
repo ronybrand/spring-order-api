@@ -18,6 +18,7 @@ import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.AuditorAware;
 
 class CustomerServiceTest {
@@ -33,7 +34,7 @@ class CustomerServiceTest {
 
     @Test
     void create_ShouldPersistCustomer_WhenDataIsValid() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", "AB123456", "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", "AB123456", "ada@example.com", false);
         when(customerRepository.existsByTaxId("TAX-12345")).thenReturn(false);
         when(customerRepository.existsByPassportNumber("AB123456")).thenReturn(false);
         when(customerRepository.save(any(Customer.class)))
@@ -49,8 +50,21 @@ class CustomerServiceTest {
     }
 
     @Test
+    void create_ShouldPersistMarketingOptIn_WhenTrue() {
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", "AB123456", "ada@example.com", true);
+        when(customerRepository.existsByTaxId("TAX-12345")).thenReturn(false);
+        when(customerRepository.existsByPassportNumber("AB123456")).thenReturn(false);
+        final ArgumentCaptor<Customer> captor = ArgumentCaptor.forClass(Customer.class);
+        when(customerRepository.save(captor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(request);
+
+        assertThat(captor.getValue().isMarketingOptIn()).isTrue();
+    }
+
+    @Test
     void create_ShouldThrowConflictException_WhenTaxIdAlreadyExists() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", null, "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", null, "ada@example.com", false);
         when(customerRepository.existsByTaxId("TAX-12345")).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(request))
@@ -62,7 +76,7 @@ class CustomerServiceTest {
 
     @Test
     void create_ShouldThrowConflictException_WhenPassportNumberAlreadyExists() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", "AB123456", "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", "AB123456", "ada@example.com", false);
         when(customerRepository.existsByTaxId("TAX-12345")).thenReturn(false);
         when(customerRepository.existsByPassportNumber("AB123456")).thenReturn(true);
 
@@ -75,7 +89,7 @@ class CustomerServiceTest {
 
     @Test
     void create_ShouldSucceed_WhenPassportNumberIsAbsent() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", null, "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-12345", null, "ada@example.com", false);
         when(customerRepository.existsByTaxId("TAX-12345")).thenReturn(false);
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -112,7 +126,7 @@ class CustomerServiceTest {
     void update_ShouldPersistChanges_WhenDataIsValid() {
         final UUID id = UUID.randomUUID();
         final Customer existing = Customer.builder().id(id).name("Old Name").taxId("TAX-OLD").email("old@example.com").build();
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-NEW", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-NEW", null, "new@example.com", true);
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.existsByTaxIdAndIdNot("TAX-NEW", id)).thenReturn(false);
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -123,12 +137,13 @@ class CustomerServiceTest {
         assertThat(existing.getName()).isEqualTo("New Name");
         assertThat(existing.getTaxId()).isEqualTo("TAX-NEW");
         assertThat(existing.getEmail()).isEqualTo("new@example.com");
+        assertThat(existing.isMarketingOptIn()).isTrue();
     }
 
     @Test
     void update_ShouldThrowResourceNotFoundException_WhenNotExists() {
         final UUID id = UUID.randomUUID();
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-NEW", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-NEW", null, "new@example.com", false);
         when(customerRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(id, request)).isInstanceOf(ResourceNotFoundException.class);
@@ -136,10 +151,35 @@ class CustomerServiceTest {
     }
 
     @Test
+    void updateMarketingOptIn_ShouldPersistOnlyThatField_WhenExists() {
+        final UUID id = UUID.randomUUID();
+        final Customer existing = Customer.builder().id(id).name("Ada Lovelace").taxId("TAX-OLD").email("old@example.com")
+                .marketingOptIn(false).build();
+        when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.updateMarketingOptIn(id, true);
+
+        assertThat(existing.isMarketingOptIn()).isTrue();
+        assertThat(existing.getName()).isEqualTo("Ada Lovelace");
+        verify(customerRepository).save(existing);
+        verify(customerRepository, never()).existsByTaxIdAndIdNot(any(), any());
+    }
+
+    @Test
+    void updateMarketingOptIn_ShouldThrowResourceNotFoundException_WhenNotExists() {
+        final UUID id = UUID.randomUUID();
+        when(customerRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateMarketingOptIn(id, true)).isInstanceOf(ResourceNotFoundException.class);
+        verify(customerRepository, never()).save(any());
+    }
+
+    @Test
     void update_ShouldThrowConflictException_WhenTaxIdBelongsToAnotherCustomer() {
         final UUID id = UUID.randomUUID();
         final Customer existing = Customer.builder().id(id).name("Old Name").taxId("TAX-OLD").email("old@example.com").build();
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-NEW", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-NEW", null, "new@example.com", false);
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.existsByTaxIdAndIdNot("TAX-NEW", id)).thenReturn(true);
 
@@ -154,7 +194,7 @@ class CustomerServiceTest {
     void update_ShouldThrowConflictException_WhenPassportNumberBelongsToAnotherCustomer() {
         final UUID id = UUID.randomUUID();
         final Customer existing = Customer.builder().id(id).name("Old Name").taxId("TAX-OLD").email("old@example.com").build();
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-OLD", "AB123456", "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-OLD", "AB123456", "new@example.com", false);
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.existsByTaxIdAndIdNot("TAX-OLD", id)).thenReturn(false);
         when(customerRepository.existsByPassportNumberAndIdNot("AB123456", id)).thenReturn(true);
@@ -170,7 +210,7 @@ class CustomerServiceTest {
     void update_ShouldSucceed_WhenTaxIdBelongsToSelf() {
         final UUID id = UUID.randomUUID();
         final Customer existing = Customer.builder().id(id).name("Old Name").taxId("TAX-SAME").email("old@example.com").build();
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-SAME", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-SAME", null, "new@example.com", false);
         when(customerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(customerRepository.existsByTaxIdAndIdNot("TAX-SAME", id)).thenReturn(false);
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));

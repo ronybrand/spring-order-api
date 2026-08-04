@@ -50,7 +50,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void create_ShouldReturn201AndPersist_WhenCallerIsAdmin() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0001", "AB123456", "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0001", "AB123456", "ada@example.com", false);
 
         final ResponseEntity<Void> response = restTemplate.exchange("/customers", HttpMethod.POST,
                 request(request, authHeadersForAdmin()), Void.class);
@@ -61,7 +61,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void create_ShouldReturn403_WhenCallerIsNotAdmin() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0002", null, "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0002", null, "ada@example.com", false);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers", HttpMethod.POST,
                 request(request, authHeadersForUser()), ErrorResponseDto.class);
@@ -72,7 +72,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void create_ShouldReturn401_WhenUnauthenticated() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0003", null, "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0003", null, "ada@example.com", false);
 
         final ResponseEntity<Void> response = restTemplate.exchange("/customers", HttpMethod.POST,
                 request(request, headers()), Void.class);
@@ -82,7 +82,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void create_ShouldReturn401_WhenAudienceIsInvalid() {
-        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0006", null, "ada@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("Ada Lovelace", "TAX-0006", null, "ada@example.com", false);
 
         final ResponseEntity<Void> response = restTemplate.exchange("/customers", HttpMethod.POST,
                 request(request, authHeadersForInvalidAudience()), Void.class);
@@ -92,9 +92,9 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void create_ShouldReturn409_WhenTaxIdAlreadyExists() {
-        final CustomerRequestDto first = new CustomerRequestDto("Ada Lovelace", "TAX-0004", null, "ada@example.com");
+        final CustomerRequestDto first = new CustomerRequestDto("Ada Lovelace", "TAX-0004", null, "ada@example.com", false);
         restTemplate.exchange("/customers", HttpMethod.POST, request(first, authHeadersForAdmin()), Void.class);
-        final CustomerRequestDto duplicate = new CustomerRequestDto("Other Name", "TAX-0004", null, "other@example.com");
+        final CustomerRequestDto duplicate = new CustomerRequestDto("Other Name", "TAX-0004", null, "other@example.com", false);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers", HttpMethod.POST,
                 request(duplicate, authHeadersForAdmin()), ErrorResponseDto.class);
@@ -105,7 +105,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void create_ShouldReturn400_WhenRequiredFieldIsMissing() {
-        final CustomerRequestDto invalid = new CustomerRequestDto("", "TAX-0005", null, "ada@example.com");
+        final CustomerRequestDto invalid = new CustomerRequestDto("", "TAX-0005", null, "ada@example.com", false);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers", HttpMethod.POST,
                 request(invalid, authHeadersForAdmin()), ErrorResponseDto.class);
@@ -149,7 +149,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
     void update_ShouldReturn204AndPersistChanges_WhenCallerIsAdmin() {
         final Customer customer = customerRepository.save(
                 Customer.builder().name("Old Name").taxId("TAX-0008").email("old@example.com").build());
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0008-NEW", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0008-NEW", null, "new@example.com", false);
 
         final ResponseEntity<Void> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.PUT,
                 request(request, authHeadersForAdmin()), Void.class);
@@ -162,7 +162,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
     void update_ShouldReturn403_WhenCallerIsNotAdmin() {
         final Customer customer = customerRepository.save(
                 Customer.builder().name("Old Name").taxId("TAX-0009").email("old@example.com").build());
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0009", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0009", null, "new@example.com", false);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.PUT,
                 request(request, authHeadersForUser()), ErrorResponseDto.class);
@@ -172,7 +172,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
     @Test
     void update_ShouldReturn404_WhenNotExists() {
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0010", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0010", null, "new@example.com", false);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + UUID.randomUUID(), HttpMethod.PUT,
                 request(request, authHeadersForAdmin()), ErrorResponseDto.class);
@@ -185,7 +185,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
         customerRepository.save(Customer.builder().name("Other").taxId("TAX-0011").email("other@example.com").build());
         final Customer customer = customerRepository.save(
                 Customer.builder().name("Old Name").taxId("TAX-0012").email("old@example.com").build());
-        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0011", null, "new@example.com");
+        final CustomerRequestDto request = new CustomerRequestDto("New Name", "TAX-0011", null, "new@example.com", false);
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.PUT,
                 request(request, authHeadersForAdmin()), ErrorResponseDto.class);
@@ -204,6 +204,70 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("TAX-0014").doesNotContain("TAX-0015");
+    }
+
+    @Test
+    void updateMarketingOptIn_ShouldReturn204AndPersistOnlyThatField_WhenCallerIsAdmin() {
+        final Customer customer = customerRepository.save(
+                Customer.builder().name("Ada Lovelace").taxId("TAX-0021").email("ada@example.com").marketingOptIn(false).build());
+        final CustomerMarketingOptInUpdateRequestDto request = new CustomerMarketingOptInUpdateRequestDto(true);
+
+        final ResponseEntity<Void> response = restTemplate.exchange("/customers/" + customer.getId() + "/marketing-opt-in",
+                HttpMethod.PATCH, request(request, authHeadersForAdmin()), Void.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        final Customer updated = customerRepository.findById(customer.getId()).orElseThrow();
+        assertThat(updated.isMarketingOptIn()).isTrue();
+        assertThat(updated.getName()).isEqualTo("Ada Lovelace");
+    }
+
+    @Test
+    void updateMarketingOptIn_ShouldReturn403_WhenCallerIsNotAdmin() {
+        final Customer customer = customerRepository.save(
+                Customer.builder().name("Ada Lovelace").taxId("TAX-0022").email("ada@example.com").build());
+        final CustomerMarketingOptInUpdateRequestDto request = new CustomerMarketingOptInUpdateRequestDto(true);
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId() + "/marketing-opt-in",
+                HttpMethod.PATCH, request(request, authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void updateMarketingOptIn_ShouldReturn404_WhenNotExists() {
+        final CustomerMarketingOptInUpdateRequestDto request = new CustomerMarketingOptInUpdateRequestDto(true);
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange(
+                "/customers/" + UUID.randomUUID() + "/marketing-opt-in", HttpMethod.PATCH,
+                request(request, authHeadersForAdmin()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void updateMarketingOptIn_ShouldReturn400_WhenValueIsMissing() {
+        final Customer customer = customerRepository.save(
+                Customer.builder().name("Ada Lovelace").taxId("TAX-0023").email("ada@example.com").build());
+        final CustomerMarketingOptInUpdateRequestDto request = new CustomerMarketingOptInUpdateRequestDto(null);
+
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId() + "/marketing-opt-in",
+                HttpMethod.PATCH, request(request, authHeadersForAdmin()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void search_ShouldFilterByMarketingOptIn_WhenValueIsBoolean() {
+        customerRepository.save(Customer.builder().name("Ada Lovelace").taxId("TAX-0019").email("ada@example.com")
+                .marketingOptIn(true).build());
+        customerRepository.save(Customer.builder().name("Alan Turing").taxId("TAX-0020").email("alan@example.com")
+                .marketingOptIn(false).build());
+
+        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[marketingOptIn]=true", HttpMethod.GET,
+                request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("TAX-0019").doesNotContain("TAX-0020");
     }
 
     @Test

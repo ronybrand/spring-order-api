@@ -14,5 +14,6 @@ public record CustomerRequestDto(
         @NotBlank @Size(max = 150) String name,
         @NotBlank @Pattern(regexp = Patterns.TAX_ID) String taxId,
         @Pattern(regexp = Patterns.PASSPORT_NUMBER) String passportNumber,
-        @NotBlank @Email @Pattern(regexp = Patterns.EMAIL) String email) {
+        @NotBlank @Email @Pattern(regexp = Patterns.EMAIL) String email,
+        boolean marketingOptIn) {
 }

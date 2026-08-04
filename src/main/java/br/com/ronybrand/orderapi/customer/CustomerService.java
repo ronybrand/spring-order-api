@@ -54,6 +54,7 @@ public class CustomerService implements SearchService<CustomerDto> {
                 .taxId(request.taxId())
                 .passportNumber(request.passportNumber())
                 .email(request.email())
+                .marketingOptIn(request.marketingOptIn())
                 .build();
         final Customer saved = customerRepository.save(customer);
         log.info("Customer created: id={}", saved.getId());
@@ -76,8 +77,18 @@ public class CustomerService implements SearchService<CustomerDto> {
         customer.setTaxId(request.taxId());
         customer.setPassportNumber(request.passportNumber());
         customer.setEmail(request.email());
+        customer.setMarketingOptIn(request.marketingOptIn());
         final Customer saved = customerRepository.save(customer);
         log.info("Customer updated: id={}", saved.getId());
+    }
+
+    @Transactional
+    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
+    void updateMarketingOptIn(@NotNull final UUID id, @NotNull final Boolean marketingOptIn) {
+        final Customer customer = findByIdOrThrow(id);
+        customer.setMarketingOptIn(marketingOptIn);
+        final Customer saved = customerRepository.save(customer);
+        log.info("Customer marketing opt-in updated: id={}, marketingOptIn={}", saved.getId(), marketingOptIn);
     }
 
     /**

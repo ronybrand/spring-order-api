@@ -15,6 +15,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -77,6 +78,18 @@ public class CustomerController implements SearchControllerSupport<CustomerDto> 
     @Operation(summary = "Update an existing customer", operationId = "updateCustomer")
     public ResponseEntity<Void> update(@PathVariable final UUID id, @RequestBody @Valid final CustomerRequestDto request) {
         customerService.update(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * @throws br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException if the customer does not exist
+     */
+    @PatchMapping("/{id}/marketing-opt-in")
+    @PreAuthorize(Constants.HAS_ROLE_ADMIN)
+    @Operation(summary = "Update a customer's marketing opt-in flag", operationId = "updateCustomerMarketingOptIn")
+    public ResponseEntity<Void> updateMarketingOptIn(@PathVariable final UUID id,
+            @RequestBody @Valid final CustomerMarketingOptInUpdateRequestDto request) {
+        customerService.updateMarketingOptIn(id, request.marketingOptIn());
         return ResponseEntity.noContent().build();
     }
 
