@@ -19,10 +19,10 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
-      - uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/init@v4.37.4
         with:
           languages: java-kotlin
       # CodeQL para Java precisa observar a build para resolver o classpath/bytecode -
       # skip de testes para o scan ser mais rapido, sem afetar a analise estatica.
       - run: ./mvnw -B -DskipTests package
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/analyze@v4.37.4
