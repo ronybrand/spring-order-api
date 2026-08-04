@@ -2,12 +2,13 @@ package br.com.ronybrand.orderapi.commons.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -17,12 +18,12 @@ class RequestIdFilterTest {
     private final RequestIdFilter filter = new RequestIdFilter();
 
     @Test
-    void doFilterInternal_ShouldReuseIncomingHeader_WhenItIsAValidUuid() throws Exception {
+    void doFilterInternal_ShouldReuseIncomingHeader_WhenItIsAValidUuid() throws ServletException, IOException {
         final String incoming = UUID.randomUUID().toString();
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
         final FilterChain chain = mock(FilterChain.class);
-        org.mockito.Mockito.when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn(incoming);
+        when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn(incoming);
 
         filter.doFilterInternal(request, response, chain);
 
@@ -31,11 +32,11 @@ class RequestIdFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldGenerateNewId_WhenHeaderIsMissing() throws Exception {
+    void doFilterInternal_ShouldGenerateNewId_WhenHeaderIsMissing() throws ServletException, IOException {
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
         final FilterChain chain = mock(FilterChain.class);
-        org.mockito.Mockito.when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn(null);
+        when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn(null);
 
         filter.doFilterInternal(request, response, chain);
 
@@ -43,11 +44,11 @@ class RequestIdFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldGenerateNewId_WhenHeaderIsNotAValidUuid() throws Exception {
+    void doFilterInternal_ShouldGenerateNewId_WhenHeaderIsNotAValidUuid() throws ServletException, IOException {
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
         final FilterChain chain = mock(FilterChain.class);
-        org.mockito.Mockito.when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn("not-a-uuid");
+        when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn("not-a-uuid");
 
         filter.doFilterInternal(request, response, chain);
 
@@ -56,11 +57,11 @@ class RequestIdFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldClearMdc_AfterChainCompletes() throws Exception {
+    void doFilterInternal_ShouldClearMdc_AfterChainCompletes() throws ServletException, IOException {
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
         final FilterChain chain = mock(FilterChain.class);
-        org.mockito.Mockito.when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn(null);
+        when(request.getHeader(RequestIdFilter.HEADER_NAME)).thenReturn(null);
 
         filter.doFilterInternal(request, response, chain);
 

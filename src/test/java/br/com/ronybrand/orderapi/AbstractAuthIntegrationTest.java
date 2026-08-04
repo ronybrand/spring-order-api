@@ -7,7 +7,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -24,8 +24,8 @@ import org.testcontainers.utility.DockerImageName;
 public abstract class AbstractAuthIntegrationTest {
 
     @ServiceConnection
-    protected static final PostgreSQLContainer<?> POSTGRES_CONTAINER =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"));
+    protected static final PostgreSQLContainer POSTGRES_CONTAINER =
+            new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
 
     static {
         POSTGRES_CONTAINER.start();

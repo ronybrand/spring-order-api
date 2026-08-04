@@ -57,7 +57,7 @@ public final class SearchSpecification {
                 return null;
             }
             return attribute.getJavaType();
-        } catch (final IllegalArgumentException e) {
+        } catch (final IllegalArgumentException _) {
             return null;
         }
     }

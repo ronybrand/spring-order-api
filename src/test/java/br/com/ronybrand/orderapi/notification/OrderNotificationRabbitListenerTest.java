@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 
 import br.com.ronybrand.orderapi.order.OrderStatus;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +37,7 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldRejectWithoutRetry_WhenPayloadIsNotValidJson() throws Exception {
+    void onMessage_ShouldRejectWithoutRetry_WhenPayloadIsNotValidJson() {
         final Message message = rawMessage("not-json".getBytes(StandardCharsets.UTF_8));
 
         assertThatThrownBy(() -> listener.onMessage(message)).isInstanceOf(AmqpRejectAndDontRequeueException.class);
@@ -45,7 +46,7 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldRejectWithoutRetry_WhenRequiredFieldIsMissing() throws Exception {
+    void onMessage_ShouldRejectWithoutRetry_WhenRequiredFieldIsMissing() {
         final String jsonMissingField = "{\"orderId\":\"" + UUID.randomUUID() + "\"}";
         final Message message = rawMessage(jsonMissingField.getBytes(StandardCharsets.UTF_8));
 
@@ -55,7 +56,7 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldSucceed_WhenPayloadIsValidAndEmailSucceeds() throws Exception {
+    void onMessage_ShouldSucceed_WhenPayloadIsValidAndEmailSucceeds() throws JsonProcessingException {
         final OrderStatusChangedEvent event = event();
         final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
 
@@ -65,7 +66,7 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldRetryThenSucceed_WhenEmailFailsOnceThenSucceeds() throws Exception {
+    void onMessage_ShouldRetryThenSucceed_WhenEmailFailsOnceThenSucceeds() throws JsonProcessingException {
         final OrderStatusChangedEvent event = event();
         final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
         doThrow(new EmailSendingException("SMTP down", null))
@@ -78,7 +79,7 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldRejectWithoutRequeue_AfterExhaustingRetries() throws Exception {
+    void onMessage_ShouldRejectWithoutRequeue_AfterExhaustingRetries() throws JsonProcessingException {
         final OrderStatusChangedEvent event = event();
         final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
         doThrow(new EmailSendingException("SMTP down", null)).when(emailService).sendOrderStatusEmail(any());

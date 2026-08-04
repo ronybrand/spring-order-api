@@ -41,7 +41,7 @@ public class Item {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String description;
 
     @Column(name = "unit_price", nullable = false, precision = 19, scale = 2)

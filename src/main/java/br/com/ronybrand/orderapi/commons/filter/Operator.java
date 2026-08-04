@@ -2,12 +2,15 @@ package br.com.ronybrand.orderapi.commons.filter;
 
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
+import lombok.Getter;
+
 import java.util.Arrays;
 
 /**
  * The nine filter operators supported by the shared search engine, encoded as a string prefix in
  * client filter values ({@code "eq:value"}, {@code "between:1,10"}...).
  */
+@Getter
 public enum Operator {
 
     EQ("eq"),
@@ -24,10 +27,6 @@ public enum Operator {
 
     Operator(final String value) {
         this.value = value;
-    }
-
-    public String getValue() {
-        return value;
     }
 
     public static Operator fromValue(final String value) {

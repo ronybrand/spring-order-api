@@ -4,14 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.ronybrand.orderapi.AbstractAuthIntegrationTest;
 import br.com.ronybrand.orderapi.TestSecurityConfig;
-import br.com.ronybrand.orderapi.order.OrderRepository;
 import br.com.ronybrand.orderapi.order.OrderTestCleanupRepository;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,9 +46,6 @@ class CustomerConcurrentDeleteIT extends AbstractAuthIntegrationTest {
     private CustomerTestCleanupRepository customerTestCleanupRepository;
 
     @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
     private OrderTestCleanupRepository orderTestCleanupRepository;
 
     @Autowired
@@ -68,7 +66,8 @@ class CustomerConcurrentDeleteIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
-    void findByIdForShare_ShouldBlock_UntilConcurrentFindByIdForUpdateTransactionCompletes() throws Exception {
+    void findByIdForShare_ShouldBlock_UntilConcurrentFindByIdForUpdateTransactionCompletes()
+            throws InterruptedException, ExecutionException, TimeoutException {
         final Customer customer = customerRepository.save(
                 Customer.builder().name("Ada Lovelace").taxId("TAX-" + UUID.randomUUID().toString().substring(0, 8))
                         .email("ada@example.com").build());
@@ -105,7 +104,9 @@ class CustomerConcurrentDeleteIT extends AbstractAuthIntegrationTest {
 
     private static void awaitUninterruptibly(final CountDownLatch latch) {
         try {
-            latch.await(5, TimeUnit.SECONDS);
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out waiting for latch to be released");
+            }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);

@@ -33,7 +33,7 @@ public class MaxRequestSizeFilter extends OncePerRequestFilter {
             final FilterChain filterChain) throws ServletException, IOException {
         final long contentLength = request.getContentLengthLong();
         if (contentLength > maxRequestSizeBytes) {
-            response.sendError(HttpStatus.PAYLOAD_TOO_LARGE.value(), "Request body exceeds the maximum allowed size");
+            response.sendError(HttpStatus.CONTENT_TOO_LARGE.value(), "Request body exceeds the maximum allowed size");
             return;
         }
         filterChain.doFilter(request, response);

@@ -12,7 +12,7 @@ public final class RepositoryLookups {
     private RepositoryLookups() {
     }
 
-    public static <T, ID> T getOrThrow(final JpaRepository<T, ID> repository, final ID id, final ErrorCode errorCode,
+    public static <T, I> T getOrThrow(final JpaRepository<T, I> repository, final I id, final ErrorCode errorCode,
             final String message) {
         return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException(message, errorCode));
     }

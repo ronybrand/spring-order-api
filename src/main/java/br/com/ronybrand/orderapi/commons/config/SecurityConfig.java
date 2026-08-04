@@ -47,7 +47,7 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(final HttpSecurity http, final CorsConfigurationSource corsConfigurationSource,
-            final JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
+            final JwtAuthenticationConverter jwtAuthenticationConverter) {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

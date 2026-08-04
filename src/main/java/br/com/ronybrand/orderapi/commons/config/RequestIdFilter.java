@@ -50,7 +50,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
         try {
             UUID.fromString(value);
             return true;
-        } catch (final IllegalArgumentException e) {
+        } catch (final IllegalArgumentException _) {
             return false;
         }
     }

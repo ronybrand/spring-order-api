@@ -2,6 +2,7 @@ package br.com.ronybrand.orderapi.commons.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.env.YamlPropertySourceLoader;
@@ -19,12 +20,12 @@ import org.springframework.core.io.ClassPathResource;
 class SwaggerDisabledByDefaultTest {
 
     @Test
-    void baseApplicationYml_ShouldDisableSpringdoc_SoProductionNeverExposesItByAccident() throws Exception {
+    void baseApplicationYml_ShouldDisableSpringdoc_SoProductionNeverExposesItByAccident() throws IOException {
         final List<PropertySource<?>> sources = new YamlPropertySourceLoader()
                 .load("application", new ClassPathResource("application.yml"));
 
         assertThat(sources).isNotEmpty();
-        final PropertySource<?> source = sources.get(0);
+        final PropertySource<?> source = sources.getFirst();
 
         assertThat(source.getProperty("springdoc.api-docs.enabled")).isEqualTo(false);
         assertThat(source.getProperty("springdoc.swagger-ui.enabled")).isEqualTo(false);

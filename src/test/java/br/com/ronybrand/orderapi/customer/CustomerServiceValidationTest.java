@@ -42,17 +42,23 @@ class CustomerServiceValidationTest {
 
     @Test
     void findById_ShouldThrowConstraintViolationException_WhenIdIsNull() {
-        assertThatThrownBy(() -> validatedProxy().findById(null)).isInstanceOf(ConstraintViolationException.class);
+        final CustomerService proxy = validatedProxy();
+
+        assertThatThrownBy(() -> proxy.findById(null)).isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
     void delete_ShouldThrowConstraintViolationException_WhenIdIsNull() {
-        assertThatThrownBy(() -> validatedProxy().delete(null)).isInstanceOf(ConstraintViolationException.class);
+        final CustomerService proxy = validatedProxy();
+
+        assertThatThrownBy(() -> proxy.delete(null)).isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
     void update_ShouldThrowConstraintViolationException_WhenRequestIsNull() {
-        assertThatThrownBy(() -> validatedProxy().update(UUID.randomUUID(), null))
-                .isInstanceOf(ConstraintViolationException.class);
+        final CustomerService proxy = validatedProxy();
+        final UUID customerId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> proxy.update(customerId, null)).isInstanceOf(ConstraintViolationException.class);
     }
 }

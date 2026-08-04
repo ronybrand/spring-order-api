@@ -2,16 +2,11 @@ package br.com.ronybrand.orderapi.commons.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import lombok.AllArgsConstructor;
 import org.junit.jupiter.api.Test;
 
 class SensitiveDataMaskerTest {
 
-    @AllArgsConstructor
-    static class Fixture {
-        private String name;
-        @Sensitive
-        private String taxId;
+    record Fixture(String name, @Sensitive String taxId) {
     }
 
     @Test

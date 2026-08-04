@@ -47,23 +47,33 @@ class OrderServiceValidationTest {
 
     @Test
     void findById_ShouldThrowConstraintViolationException_WhenIdIsNull() {
-        assertThatThrownBy(() -> validatedProxy().findById(null)).isInstanceOf(ConstraintViolationException.class);
+        final OrderService proxy = validatedProxy();
+
+        assertThatThrownBy(() -> proxy.findById(null)).isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
     void create_ShouldThrowConstraintViolationException_WhenCustomerIdIsNull() {
-        assertThatThrownBy(() -> validatedProxy().create(null, List.of()))
-                .isInstanceOf(ConstraintViolationException.class);
+        final OrderService proxy = validatedProxy();
+        final List<ItemRequestDto> noItems = List.of();
+
+        assertThatThrownBy(() -> proxy.create(null, noItems)).isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
     void confirm_ShouldThrowConstraintViolationException_WhenIdIsNull() {
-        assertThatThrownBy(() -> validatedProxy().confirm(null)).isInstanceOf(ConstraintViolationException.class);
+        final OrderService proxy = validatedProxy();
+
+        assertThatThrownBy(() -> proxy.confirm(null)).isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
     void updateItemQuantity_ShouldThrowConstraintViolationException_WhenQuantityIsNull() {
-        assertThatThrownBy(() -> validatedProxy().updateItemQuantity(UUID.randomUUID(), UUID.randomUUID(), null))
+        final OrderService proxy = validatedProxy();
+        final UUID orderId = UUID.randomUUID();
+        final UUID itemId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> proxy.updateItemQuantity(orderId, itemId, null))
                 .isInstanceOf(ConstraintViolationException.class);
     }
 }

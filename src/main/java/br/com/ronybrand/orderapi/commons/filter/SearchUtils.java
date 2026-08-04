@@ -87,7 +87,7 @@ public final class SearchUtils {
 
     public static Pageable buildPageable(final int page, final int size, final int maxSize, final Sort sort) {
         final int safePage = Math.max(page, 0);
-        final int safeSize = Math.min(Math.max(size, 1), maxSize);
+        final int safeSize = Math.clamp(size, 1, maxSize);
         return PageRequest.of(safePage, safeSize, sort);
     }
 

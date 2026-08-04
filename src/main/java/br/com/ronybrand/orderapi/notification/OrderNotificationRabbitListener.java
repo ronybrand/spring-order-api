@@ -67,7 +67,7 @@ public class OrderNotificationRabbitListener implements MessageListener {
 
     private void sendWithRetry(final OrderStatusChangedEvent event) {
         long backoffMs = NotificationRetryPolicy.INITIAL_BACKOFF.toMillis();
-        for (int attempt = 1; attempt <= NotificationRetryPolicy.MAX_RETRIES + 1; attempt++) {
+        for (int attempt = 1; ; attempt++) {
             try {
                 emailService.sendOrderStatusEmail(event);
                 return;

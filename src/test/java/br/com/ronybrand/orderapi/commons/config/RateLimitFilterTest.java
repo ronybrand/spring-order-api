@@ -7,15 +7,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
 class RateLimitFilterTest {
 
     @Test
-    void doFilterInternal_ShouldAllowRequests_WithinLimit() throws Exception {
+    void doFilterInternal_ShouldAllowRequests_WithinLimit() throws ServletException, IOException {
         final RateLimitFilter filter = new RateLimitFilter(3, 60, "");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
@@ -31,7 +33,7 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldReject429_WhenLimitExceededWithinWindow() throws Exception {
+    void doFilterInternal_ShouldReject429_WhenLimitExceededWithinWindow() throws ServletException, IOException {
         final RateLimitFilter filter = new RateLimitFilter(2, 60, "");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
@@ -48,7 +50,7 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldPartitionCounters_ByClientIp() throws Exception {
+    void doFilterInternal_ShouldPartitionCounters_ByClientIp() throws ServletException, IOException {
         final RateLimitFilter filter = new RateLimitFilter(1, 60, "");
         final HttpServletRequest requestA = mock(HttpServletRequest.class);
         final HttpServletRequest requestB = mock(HttpServletRequest.class);
@@ -65,7 +67,7 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldPreferForwardedForFirstHop_WhenRemoteAddrIsATrustedProxy() throws Exception {
+    void doFilterInternal_ShouldPreferForwardedForFirstHop_WhenRemoteAddrIsATrustedProxy() throws ServletException, IOException {
         final RateLimitFilter filter = new RateLimitFilter(1, 60, "10.0.0.1");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
@@ -81,7 +83,7 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void doFilterInternal_ShouldIgnoreForwardedFor_WhenRemoteAddrIsNotATrustedProxy() throws Exception {
+    void doFilterInternal_ShouldIgnoreForwardedFor_WhenRemoteAddrIsNotATrustedProxy() throws ServletException, IOException {
         final RateLimitFilter filter = new RateLimitFilter(1, 60, "");
         final HttpServletRequest firstRequest = mock(HttpServletRequest.class);
         final HttpServletRequest secondRequest = mock(HttpServletRequest.class);

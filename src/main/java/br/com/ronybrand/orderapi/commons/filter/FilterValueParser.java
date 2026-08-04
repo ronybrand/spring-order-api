@@ -43,7 +43,8 @@ public final class FilterValueParser {
     public static <T> T parse(final String rawValue, final Class<T> targetType) {
         try {
             if (targetType.isEnum()) {
-                return (T) parseEnum(rawValue, (Class<? extends Enum>) targetType);
+                final Object enumValue = parseEnum(rawValue, targetType);
+                return (T) enumValue;
             }
             final Function<String, Object> parser = PARSERS.get(targetType);
             if (parser == null) {

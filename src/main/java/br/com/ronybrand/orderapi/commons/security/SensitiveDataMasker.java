@@ -39,10 +39,10 @@ public final class SensitiveDataMasker {
         if (field.isAnnotationPresent(Sensitive.class)) {
             return MASK;
         }
-        field.setAccessible(true);
+        field.setAccessible(true); // NOSONAR java:S3011 - required to read a private field generically
         try {
             return field.get(target);
-        } catch (final IllegalAccessException e) {
+        } catch (final IllegalAccessException _) {
             return "?";
         }
     }

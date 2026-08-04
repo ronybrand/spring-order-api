@@ -58,8 +58,9 @@ class OrderServiceTest {
     void create_ShouldThrowInvalidInputException_WhenCustomerIdDoesNotExist() {
         final UUID customerId = UUID.randomUUID();
         when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.empty());
+        final List<ItemRequestDto> noItems = List.of();
 
-        assertThatThrownBy(() -> service.create(customerId, List.of()))
+        assertThatThrownBy(() -> service.create(customerId, noItems))
                 .isInstanceOf(InvalidInputException.class)
                 .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.VALIDATION_INVALID_CUSTOMER_ID));
@@ -178,8 +179,10 @@ class OrderServiceTest {
         final Order order = openOrderWith();
         order.setStatus(OrderStatus.CONFIRMED);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
+        final ItemRequestDto newItem = item("Widget", "10.00", 1);
 
-        assertThatThrownBy(() -> service.addItem(order.getId(), item("Widget", "10.00", 1)))
+        assertThatThrownBy(() -> service.addItem(orderId, newItem))
                 .isInstanceOf(InvalidInputException.class)
                 .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.VALIDATION_ORDER_NOT_EDITABLE));
@@ -204,8 +207,10 @@ class OrderServiceTest {
         final Order order = openOrderWith(existingItem);
         order.setStatus(OrderStatus.CANCELED);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
+        final UUID itemId = existingItem.getId();
 
-        assertThatThrownBy(() -> service.updateItemQuantity(order.getId(), existingItem.getId(), 5))
+        assertThatThrownBy(() -> service.updateItemQuantity(orderId, itemId, 5))
                 .isInstanceOf(InvalidInputException.class);
         verify(orderRepository, never()).save(any());
     }
@@ -214,8 +219,10 @@ class OrderServiceTest {
     void updateItemQuantity_ShouldThrowResourceNotFoundException_WhenItemDoesNotBelongToOrder() {
         final Order order = openOrderWith();
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
+        final UUID unknownItemId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> service.updateItemQuantity(order.getId(), UUID.randomUUID(), 5))
+        assertThatThrownBy(() -> service.updateItemQuantity(orderId, unknownItemId, 5))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -239,8 +246,10 @@ class OrderServiceTest {
         final Order order = openOrderWith(existingItem);
         order.setStatus(OrderStatus.CONFIRMED);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
+        final UUID itemId = existingItem.getId();
 
-        assertThatThrownBy(() -> service.removeItem(order.getId(), existingItem.getId()))
+        assertThatThrownBy(() -> service.removeItem(orderId, itemId))
                 .isInstanceOf(InvalidInputException.class);
         verify(orderRepository, never()).save(any());
     }
@@ -263,8 +272,9 @@ class OrderServiceTest {
         final Order order = openOrderWith(existingItem);
         order.setStatus(OrderStatus.CONFIRMED);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
 
-        assertThatThrownBy(() -> service.confirm(order.getId()))
+        assertThatThrownBy(() -> service.confirm(orderId))
                 .isInstanceOf(InvalidInputException.class)
                 .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION));
@@ -277,16 +287,18 @@ class OrderServiceTest {
         final Order order = openOrderWith(existingItem);
         order.setStatus(OrderStatus.CANCELED);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
 
-        assertThatThrownBy(() -> service.confirm(order.getId())).isInstanceOf(InvalidInputException.class);
+        assertThatThrownBy(() -> service.confirm(orderId)).isInstanceOf(InvalidInputException.class);
     }
 
     @Test
     void confirm_ShouldThrowInvalidInputException_WhenNoItems() {
         final Order order = openOrderWith();
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
 
-        assertThatThrownBy(() -> service.confirm(order.getId()))
+        assertThatThrownBy(() -> service.confirm(orderId))
                 .isInstanceOf(InvalidInputException.class)
                 .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.VALIDATION_ORDER_EMPTY));
@@ -349,8 +361,9 @@ class OrderServiceTest {
         final Order order = openOrderWith();
         order.setStatus(OrderStatus.CANCELED);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
 
-        assertThatThrownBy(() -> service.cancel(order.getId()))
+        assertThatThrownBy(() -> service.cancel(orderId))
                 .isInstanceOf(InvalidInputException.class)
                 .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.VALIDATION_ORDER_INVALID_STATUS_TRANSITION));
@@ -376,8 +389,10 @@ class OrderServiceTest {
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class)))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+        final UUID orderId = order.getId();
+        final ItemRequestDto newItem = item("Widget", "10.00", 1);
 
-        assertThatThrownBy(() -> service.addItem(order.getId(), item("Widget", "10.00", 1)))
+        assertThatThrownBy(() -> service.addItem(orderId, newItem))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 
@@ -388,8 +403,10 @@ class OrderServiceTest {
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class)))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+        final UUID orderId = order.getId();
+        final UUID itemId = existingItem.getId();
 
-        assertThatThrownBy(() -> service.updateItemQuantity(order.getId(), existingItem.getId(), 5))
+        assertThatThrownBy(() -> service.updateItemQuantity(orderId, itemId, 5))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 
@@ -400,8 +417,10 @@ class OrderServiceTest {
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class)))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+        final UUID orderId = order.getId();
+        final UUID itemId = existingItem.getId();
 
-        assertThatThrownBy(() -> service.removeItem(order.getId(), existingItem.getId()))
+        assertThatThrownBy(() -> service.removeItem(orderId, itemId))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 
@@ -412,8 +431,9 @@ class OrderServiceTest {
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class)))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+        final UUID orderId = order.getId();
 
-        assertThatThrownBy(() -> service.confirm(order.getId()))
+        assertThatThrownBy(() -> service.confirm(orderId))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         verify(eventPublisher, never()).publishEvent(any());
     }
@@ -424,8 +444,9 @@ class OrderServiceTest {
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class)))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, order.getId()));
+        final UUID orderId = order.getId();
 
-        assertThatThrownBy(() -> service.cancel(order.getId()))
+        assertThatThrownBy(() -> service.cancel(orderId))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
         verify(eventPublisher, never()).publishEvent(any());
     }

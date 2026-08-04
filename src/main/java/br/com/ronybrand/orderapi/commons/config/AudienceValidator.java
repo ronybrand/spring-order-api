@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.commons.config;
 
+import java.util.List;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -10,17 +11,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * claim is never checked unless this validator is added explicitly. Without it, any token issued
  * by the same Keycloak realm, but for a different client/audience, would be accepted here.
  */
-public class AudienceValidator implements OAuth2TokenValidator<Jwt> {
-
-    private final String expectedAudience;
-
-    public AudienceValidator(final String expectedAudience) {
-        this.expectedAudience = expectedAudience;
-    }
+public record AudienceValidator(String expectedAudience) implements OAuth2TokenValidator<Jwt> {
 
     @Override
     public OAuth2TokenValidatorResult validate(final Jwt token) {
-        if (token.getAudience().contains(expectedAudience)) {
+        final List<String> audience = token.getAudience();
+        if (audience != null && audience.contains(expectedAudience)) {
             return OAuth2TokenValidatorResult.success();
         }
         final OAuth2Error error = new OAuth2Error("invalid_token",
