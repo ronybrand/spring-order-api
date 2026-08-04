@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Plain logback.xml (not logback-spring.xml): no <springProfile>/<springProperty> tags are
+    used here, so this loads via Logback's own classpath discovery - which means it also applies
+    to plain unit tests (no Spring context needed), letting LogScrubbingTest exercise the real
+    appender pattern.
+
+    The %replace chains below scrub known sensitive-data shapes (JWT, email, CPF) out of both the
+    log message and the exception stack trace before anything is written - mitigating the risk
+    documented in AGENTS.md ("dados sensiveis nunca aparecem em log.error") for exceptions whose
+    message content is not controlled by this codebase (e.g. GlobalExceptionHandler#handleUnexpected
+    logging an arbitrary caught Exception). This is a best-effort net for known patterns, not a
+    guarantee against arbitrary sensitive content.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <property name="REGEX_JWT" value="eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"/>
+    <property name="REGEX_EMAIL" value="[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}"/>
+    <property name="REGEX_CPF" value="\d{3}\.\d{3}\.\d{3}-\d{2}"/>
+
+    <property name="SCRUBBED_MSG"
+        value="%replace(%replace(%replace(%m){&quot;${REGEX_JWT}&quot;, &quot;***REDACTED-TOKEN***&quot;}){&quot;${REGEX_EMAIL}&quot;, &quot;***REDACTED-EMAIL***&quot;}){&quot;${REGEX_CPF}&quot;, &quot;***REDACTED-CPF***&quot;}"/>
+    <property name="SCRUBBED_EX"
+        value="%replace(%replace(%replace(%wEx){&quot;${REGEX_JWT}&quot;, &quot;***REDACTED-TOKEN***&quot;}){&quot;${REGEX_EMAIL}&quot;, &quot;***REDACTED-EMAIL***&quot;}){&quot;${REGEX_CPF}&quot;, &quot;***REDACTED-CPF***&quot;}"/>
+
+    <property name="CONSOLE_LOG_PATTERN"
+        value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} ${SCRUBBED_MSG}%n${SCRUBBED_EX}"/>
+
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
