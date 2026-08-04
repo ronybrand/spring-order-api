@@ -30,6 +30,7 @@ código existente.
 - [ ] `UUID id` gerado na aplicação (`GenerationType.UUID`), nunca pelo banco.
 - [ ] Soft delete (`deletedAt`/`deletedBy`) como padrão; serviços de produção nunca executam hard delete nem operações de exclusão em massa.
 - [ ] `@Version` utilizado em entidades sujeitas a concorrência real; não é obrigatório em entidades de referência sem atualizações concorrentes relevantes.
+- [ ] Todo check-then-act entre **duas entidades diferentes** (ex. bloquear exclusão de A se existe B ativo referenciando A) usa lock pessimista explícito nos dois lados (`FOR UPDATE`/`FOR SHARE`), não só no lado que escreve — no Postgres, um `UPDATE` comum e um `INSERT` via FK não conflitam entre si por padrão, então travar um único lado não fecha a corrida.
 - [ ] Toda validação de unicidade feita no service possui constraint equivalente no banco.
 - [ ] Todo `BigDecimal` novo é construído a partir de `String`/`BigDecimal.valueOf(double)`, nunca do construtor de `double` puro; toda divisão de `BigDecimal` especifica escala e `RoundingMode` explícitos.
 - [ ] `@Query` nativa: utilizar parâmetros nomeados (`:id`), nunca concatenação de strings; aplicar manualmente `AND deleted_at IS NULL`, pois `@SQLRestriction` não é aplicado a queries nativas.
@@ -43,6 +44,7 @@ código existente.
 - [ ] Novos `ErrorCode` seguem a convenção de nomenclatura e numeração existente; nunca reutilizar um código para um significado diferente.
 - [ ] `import` sempre no topo do arquivo; evitar nomes totalmente qualificados no corpo do código, salvo conflito entre classes homônimas.
 - [ ] Chamadas intra-classe a métodos anotados com `@Transactional`, `@PreAuthorize`, `@Cacheable` ou outros aspectos Spring passam pelo bean gerenciado (proxy), nunca por `this`.
+- [ ] Toda classe de service com `@NotNull`/`@Positive`/etc. em parâmetro de método tem `@Validated` na classe — sem isso a anotação é decorativa e nunca dispara `ConstraintViolationException`.
 - [ ] Busca, filtro e paginação reutilizam a infraestrutura compartilhada do projeto; validações de campo/tipo devem ser resolvidas a partir do metamodel JPA, evitando duplicação manual de metadados por domínio.
 
 ## Baseline de segurança (não desativar por acidente)
