@@ -100,13 +100,13 @@ public class SecurityConfig {
     static final class RealmRoleConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
         @Override
-        @SuppressWarnings("unchecked")
         public Collection<GrantedAuthority> convert(final Jwt jwt) {
             final Map<String, Object> realmAccess = jwt.getClaimAsMap(REALM_ACCESS_CLAIM);
             if (realmAccess == null || !(realmAccess.get(ROLES_CLAIM) instanceof List<?> roles)) {
                 return List.of();
             }
             return roles.stream()
+                    .filter(String.class::isInstance)
                     .map(String.class::cast)
                     .map(role -> ROLE_PREFIX + role.toUpperCase(Locale.ROOT))
                     .map(SimpleGrantedAuthority::new)

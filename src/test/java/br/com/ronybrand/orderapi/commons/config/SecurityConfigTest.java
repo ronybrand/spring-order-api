@@ -38,6 +38,23 @@ class SecurityConfigTest {
     }
 
     @Test
+    void convert_ShouldIgnoreNonStringEntries_WhenRolesClaimHasUnexpectedElementTypes() {
+        final Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("sub", "user-id")
+                .claim("realm_access", Map.of("roles", List.of("admin", 42, Map.of("nested", "value"))))
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(60))
+                .build();
+
+        final Collection<GrantedAuthority> authorities = converter.convert(jwt);
+
+        assertThat(authorities)
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_ADMIN");
+    }
+
+    @Test
     void convert_ShouldReturnEmpty_WhenRolesListIsMissingFromRealmAccess() {
         final Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "none")
