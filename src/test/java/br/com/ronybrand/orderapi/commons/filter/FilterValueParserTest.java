@@ -39,6 +39,22 @@ class FilterValueParserTest {
     }
 
     @Test
+    void parse_ShouldConvertToBoolean_CaseInsensitively() {
+        assertThat(FilterValueParser.parse("true", Boolean.class)).isTrue();
+        assertThat(FilterValueParser.parse("TRUE", Boolean.class)).isTrue();
+        assertThat(FilterValueParser.parse("false", Boolean.class)).isFalse();
+        assertThat(FilterValueParser.parse("FALSE", Boolean.class)).isFalse();
+    }
+
+    @Test
+    void parse_ShouldThrowInvalidInputException_WhenValueIsNotABoolean() {
+        assertThatThrownBy(() -> FilterValueParser.parse("treu", Boolean.class))
+                .isInstanceOf(InvalidInputException.class);
+        assertThatThrownBy(() -> FilterValueParser.parse("1", Boolean.class))
+                .isInstanceOf(InvalidInputException.class);
+    }
+
+    @Test
     void parseList_ShouldSplitOnCommaAndTrim() {
         final List<Integer> result = FilterValueParser.parseList("1, 2,3", Integer.class);
 

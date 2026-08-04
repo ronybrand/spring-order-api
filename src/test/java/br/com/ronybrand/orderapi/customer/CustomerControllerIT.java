@@ -271,6 +271,15 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
+    void search_ShouldReturn400_WhenMarketingOptInValueIsNotBoolean() {
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/search?filter[marketingOptIn]=treu",
+                HttpMethod.GET, request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_INVALID_FILTER_VALUE.getCode());
+    }
+
+    @Test
     void search_ShouldReturn400_WhenSortFieldIsInvalid() {
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/search?order=notAField", HttpMethod.GET,
                 request(authHeadersForUser()), ErrorResponseDto.class);

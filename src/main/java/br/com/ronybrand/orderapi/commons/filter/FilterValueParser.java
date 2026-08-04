@@ -30,8 +30,8 @@ public final class FilterValueParser {
             Map.entry(UUID.class, UUID::fromString),
             Map.entry(LocalDate.class, LocalDate::parse),
             Map.entry(LocalDateTime.class, LocalDateTime::parse),
-            Map.entry(Boolean.class, Boolean::valueOf),
-            Map.entry(boolean.class, Boolean::valueOf));
+            Map.entry(Boolean.class, FilterValueParser::parseStrictBoolean),
+            Map.entry(boolean.class, FilterValueParser::parseStrictBoolean));
 
     private FilterValueParser() {
     }
@@ -60,6 +60,16 @@ public final class FilterValueParser {
                 .map(String::trim)
                 .map(value -> parse(value, targetType))
                 .toList();
+    }
+
+    private static Boolean parseStrictBoolean(final String rawValue) {
+        if ("true".equalsIgnoreCase(rawValue)) {
+            return Boolean.TRUE;
+        }
+        if ("false".equalsIgnoreCase(rawValue)) {
+            return Boolean.FALSE;
+        }
+        throw new IllegalArgumentException("Not a boolean: " + rawValue);
     }
 
     @SuppressWarnings("unchecked")
