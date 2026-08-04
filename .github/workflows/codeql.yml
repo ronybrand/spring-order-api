@@ -1,0 +1,28 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+      # CodeQL para Java precisa observar a build para resolver o classpath/bytecode -
+      # skip de testes para o scan ser mais rapido, sem afetar a analise estatica.
+      - run: ./mvnw -B -DskipTests package
+      - uses: github/codeql-action/analyze@v4
