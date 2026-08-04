@@ -37,6 +37,7 @@ import org.springframework.validation.annotation.Validated;
 public class CustomerService implements SearchService<CustomerDto> {
 
     private static final String SYSTEM_USER = "system";
+    private static final String ID_CACHE_KEY = "#id";
 
     private final CustomerRepository customerRepository;
     private final OrderRepository orderRepository;
@@ -61,13 +62,13 @@ public class CustomerService implements SearchService<CustomerDto> {
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
+    @Cacheable(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = ID_CACHE_KEY)
     CustomerDto findById(@NotNull final UUID id) {
         return CustomerDto.from(findByIdOrThrow(id));
     }
 
     @Transactional
-    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
+    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = ID_CACHE_KEY)
     void update(@NotNull final UUID id, @NotNull final CustomerRequestDto request) {
         final Customer customer = findByIdOrThrow(id);
         ensureTaxIdIsUnique(request.taxId(), id);
@@ -83,7 +84,7 @@ public class CustomerService implements SearchService<CustomerDto> {
     }
 
     @Transactional
-    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
+    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = ID_CACHE_KEY)
     void updateMarketingOptIn(@NotNull final UUID id, @NotNull final Boolean marketingOptIn) {
         final Customer customer = findByIdOrThrow(id);
         customer.setMarketingOptIn(marketingOptIn);
@@ -97,7 +98,7 @@ public class CustomerService implements SearchService<CustomerDto> {
      * customer - see {@link CustomerRepository#findByIdForUpdate}.
      */
     @Transactional
-    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = "#id")
+    @CacheEvict(cacheNames = CacheConfig.CUSTOMERS_CACHE, key = ID_CACHE_KEY)
     void delete(@NotNull final UUID id) {
         final Customer customer = customerRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found", ErrorCode.RESOURCE_NOT_FOUND_CUSTOMER));

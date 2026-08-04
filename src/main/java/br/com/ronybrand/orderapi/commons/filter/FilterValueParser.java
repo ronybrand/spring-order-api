@@ -20,6 +20,9 @@ import java.util.function.Function;
  */
 public final class FilterValueParser {
 
+    private static final String TRUE_LITERAL = "true";
+    private static final String FALSE_LITERAL = "false";
+
     private static final Map<Class<?>, Function<String, Object>> PARSERS = Map.ofEntries(
             Map.entry(String.class, v -> v),
             Map.entry(Integer.class, Integer::valueOf),
@@ -49,9 +52,11 @@ public final class FilterValueParser {
             }
             return (T) parser.apply(rawValue);
         } catch (final IllegalArgumentException | DateTimeParseException e) {
-            throw new InvalidInputException(
+            final InvalidInputException invalidInputException = new InvalidInputException(
                     "Invalid filter value '" + rawValue + "' for type " + targetType.getSimpleName(),
                     ErrorCode.VALIDATION_INVALID_FILTER_VALUE);
+            invalidInputException.initCause(e);
+            throw invalidInputException;
         }
     }
 
@@ -63,10 +68,10 @@ public final class FilterValueParser {
     }
 
     private static Boolean parseStrictBoolean(final String rawValue) {
-        if ("true".equalsIgnoreCase(rawValue)) {
+        if (TRUE_LITERAL.equalsIgnoreCase(rawValue)) {
             return Boolean.TRUE;
         }
-        if ("false".equalsIgnoreCase(rawValue)) {
+        if (FALSE_LITERAL.equalsIgnoreCase(rawValue)) {
             return Boolean.FALSE;
         }
         throw new IllegalArgumentException("Not a boolean: " + rawValue);

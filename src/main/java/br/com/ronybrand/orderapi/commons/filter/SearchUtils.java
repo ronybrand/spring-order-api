@@ -78,7 +78,10 @@ public final class SearchUtils {
                 throw new InvalidInputException("Invalid sort field: " + field, ErrorCode.VALIDATION_INVALID_SORT_FIELD);
             }
         } catch (final IllegalArgumentException e) {
-            throw new InvalidInputException("Invalid sort field: " + field, ErrorCode.VALIDATION_INVALID_SORT_FIELD);
+            final InvalidInputException invalidInputException =
+                    new InvalidInputException("Invalid sort field: " + field, ErrorCode.VALIDATION_INVALID_SORT_FIELD);
+            invalidInputException.initCause(e);
+            throw invalidInputException;
         }
     }
 

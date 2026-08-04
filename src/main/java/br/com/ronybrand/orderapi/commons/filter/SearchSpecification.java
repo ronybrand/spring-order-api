@@ -23,6 +23,8 @@ import org.springframework.data.jpa.domain.Specification;
  */
 public final class SearchSpecification {
 
+    private static final int BETWEEN_PARTS_COUNT = 2;
+
     private SearchSpecification() {
     }
 
@@ -98,8 +100,8 @@ public final class SearchSpecification {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Predicate betweenPredicate(final CriteriaBuilder cb, final Path<Object> path,
             final Class<?> attributeType, final String rawValue) {
-        final String[] parts = rawValue.split(",", 2);
-        if (parts.length != 2) {
+        final String[] parts = rawValue.split(",", BETWEEN_PARTS_COUNT);
+        if (parts.length != BETWEEN_PARTS_COUNT) {
             throw new InvalidInputException("Operator between requires two comma-separated values",
                     ErrorCode.VALIDATION_INVALID_FILTER_VALUE);
         }

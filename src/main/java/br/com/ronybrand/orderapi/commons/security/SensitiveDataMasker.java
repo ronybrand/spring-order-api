@@ -32,6 +32,9 @@ public final class SensitiveDataMasker {
         return result.append(')').toString();
     }
 
+    // Reading a declared field's value via reflection requires setAccessible() when the field
+    // isn't public - there's no non-reflective way to implement a generic toString() otherwise.
+    @SuppressWarnings("PMD.AvoidAccessibilityAlteration")
     private static Object renderValue(final Field field, final Object target) {
         if (field.isAnnotationPresent(Sensitive.class)) {
             return MASK;
