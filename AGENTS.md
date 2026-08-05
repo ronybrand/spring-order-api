@@ -1,66 +1,67 @@
-# Instruções para agentes de código neste repositório
+# Instructions for coding agents in this repository
 
-Antes de editar qualquer arquivo em `src/main/java` ou `src/test/java`, invoque a skill
-`spring-feature` (`.claude/skills/spring-feature/SKILL.md`), que contém as convenções completas
-de desenvolvimento deste projeto.
+Before editing any file in `src/main/java` or `src/test/java`, invoke the `spring-feature` skill
+(`.claude/skills/spring-feature/SKILL.md`), which holds the full development conventions for
+this project.
 
-A skill é a fonte de referência para arquitetura, implementação, testes, segurança e persistência.
-Este arquivo contém apenas o checklist resumido dos pontos que devem ser validados antes de uma
-alteração.
+The skill is the reference source for architecture, implementation, testing, security and
+persistence. This file is only the condensed checklist of points that must be validated before a
+change.
 
-A instrução vale tanto para novas features quanto para correções, refatorações e auditorias de
-código existente.
+This applies to new features as well as bug fixes, refactors and audits of existing code.
 
-## Checklist antes de escrever código
+## Checklist before writing code
 
-- [ ] Li o domínio de referência mais parecido neste projeto e vou espelhar sua estrutura e convenções, evitando criar um padrão novo sem necessidade justificada.
-- [ ] Classifiquei **cada campo novo** (entidade + `RequestDto`) contra: PII (documento de identidade, e-mail, telefone, endereço...), categoria especial/LGPD art. 5º (saúde, biometria, dado racial/religioso/político), PCI (dado de cartão), dado financeiro (conta, salário, score), credenciais/segredos (senha, API key, token). Se o campo for sensível, utilize a infraestrutura existente (`@Sensitive` e mascaramento centralizado), nunca uma solução manual ad hoc. Nenhum campo sensível deve ser adicionado "para o caso de precisar depois" sem necessidade real da feature.
-- [ ] Apliquei DRY (*Don't Repeat Yourself*) e eliminei duplicações de código, tanto em produção quanto nos testes (ex. reaproveitando helpers da classe base de teste `AbstractAuthIntegrationTest` e utilitários compartilhados).
-- [ ] Avaliei se alguma parte da task se beneficia de processamento assíncrono/mensageria (fila, broker, listener) - ex. efeito colateral que depende de serviço externo lento/instável, ou que não deveria bloquear/reverter a resposta principal - versus resolver com uma chamada síncrona mais simples. Qualquer que seja a escolha, deixei o motivo explícito no plano ou no README, não uma decisão por padrão/hábito.
+- [ ] I read the closest reference domain in this project and will mirror its structure and conventions, avoiding a new pattern without justified need.
+- [ ] I classified **every new field** (entity + `RequestDto`) against: PII (identity document, email, phone, address...), special category/GDPR-equivalent (health, biometric, racial/religious/political data), PCI (card data), financial data (account, salary, score), credentials/secrets (password, API key, token). If the field is sensitive, use the existing infrastructure (`@Sensitive` and centralized masking), never an ad hoc manual solution. No sensitive field should be added "in case it's needed later" without a real feature need.
+- [ ] I applied DRY (*Don't Repeat Yourself*) and eliminated code duplication, both in production and test code (e.g. reusing helpers from the `AbstractAuthIntegrationTest` base test class and shared utilities).
+- [ ] I evaluated whether any part of the task benefits from async processing/messaging (queue, broker, listener) - e.g. a side effect that depends on a slow/unstable external service, or that shouldn't block/roll back the main response - versus a simpler synchronous call. Whatever the choice, I made the reason explicit in the plan or the README, not a decision made by default/habit.
 
-## TDD (red → green → refactor, não retroativo)
+## TDD (red → green → refactor, not retroactive)
 
-- [ ] Teste escrito e executado **falhando antes** do código de produção correspondente.
-- [ ] `*ServiceTest` cobre todos os branches relevantes: caminho feliz, recurso inexistente, conflito de unicidade, regra de negócio violada, limites exatos de validação (`N` e `N+1`) e, quando aplicável, concorrência otimista (`@Version`).
-- [ ] Todo domínio exposto via HTTP possui `*ControllerIT`, incluindo pelo menos um cenário de autorização negada (403) para cada endpoint protegido.
-- [ ] Rate limiting, CORS ou qualquer outro guard de produção não foram alterados para facilitar testes; diferenças de configuração pertencem exclusivamente ao profile de teste.
+- [ ] Test written and run **failing before** the corresponding production code.
+- [ ] `*ServiceTest` covers all relevant branches: happy path, resource not found, uniqueness conflict, violated business rule, exact validation boundaries (`N` and `N+1`) and, when applicable, optimistic concurrency (`@Version`).
+- [ ] Every domain exposed via HTTP has a `*ControllerIT`, including at least one denied-authorization scenario (403) for each protected endpoint.
+- [ ] Rate limiting, CORS, or any other production guard was not altered to make testing easier; configuration differences belong exclusively to the test profile.
 
-## Entidade / persistência
+## Entity / persistence
 
-- [ ] `UUID id` gerado na aplicação (`GenerationType.UUID`), nunca pelo banco.
-- [ ] Soft delete (`deletedAt`/`deletedBy`) como padrão; serviços de produção nunca executam hard delete nem operações de exclusão em massa.
-- [ ] `@Version` utilizado em entidades sujeitas a concorrência real; não é obrigatório em entidades de referência sem atualizações concorrentes relevantes.
-- [ ] Todo check-then-act entre **duas entidades diferentes** (ex. bloquear exclusão de A se existe B ativo referenciando A) usa lock pessimista explícito nos dois lados (`FOR UPDATE`/`FOR SHARE`), não só no lado que escreve — no Postgres, um `UPDATE` comum e um `INSERT` via FK não conflitam entre si por padrão, então travar um único lado não fecha a corrida.
-- [ ] Toda validação de unicidade feita no service possui constraint equivalente no banco.
-- [ ] Todo `BigDecimal` novo é construído a partir de `String`/`BigDecimal.valueOf(double)`, nunca do construtor de `double` puro; toda divisão de `BigDecimal` especifica escala e `RoundingMode` explícitos.
-- [ ] `@Query` nativa: utilizar parâmetros nomeados (`:id`), nunca concatenação de strings; aplicar manualmente `AND deleted_at IS NULL`, pois `@SQLRestriction` não é aplicado a queries nativas.
-- [ ] Listagens/paginação envolvendo coleções evitam N+1 através de estratégia explícita (`@BatchSize`, `EntityGraph` ou equivalente).
-- [ ] `@ToString(exclude = {...})` em associações lazy; nunca utilizar `@Data` em entidades JPA; entidades com dados sensíveis delegam a representação textual para a infraestrutura centralizada de mascaramento.
+- [ ] `UUID id` generated by the application (`GenerationType.UUID`), never by the database.
+- [ ] Soft delete (`deletedAt`/`deletedBy`) as the default; production services never perform hard deletes or bulk delete operations.
+- [ ] `@Version` used on entities subject to real concurrency; not mandatory on reference entities without relevant concurrent updates.
+- [ ] Every check-then-act between **two different entities** (e.g. blocking deletion of A if an active B still references it) uses an explicit pessimistic lock on both sides (`FOR UPDATE`/`FOR SHARE`), not just the writing side — in Postgres, a plain `UPDATE` and an `INSERT` via FK don't conflict with each other by default, so locking only one side doesn't close the race.
+- [ ] Every uniqueness validation done in the service has an equivalent constraint in the database.
+- [ ] Every new `BigDecimal` is built from a `String`/`BigDecimal.valueOf(double)`, never from the raw `double` constructor; every `BigDecimal` division specifies explicit scale and `RoundingMode`.
+- [ ] Native `@Query`: use named parameters (`:id`), never string concatenation; manually apply `AND deleted_at IS NULL`, since `@SQLRestriction` doesn't apply to native queries.
+- [ ] Listings/pagination involving collections avoid N+1 via an explicit strategy (`@BatchSize`, `EntityGraph` or equivalent).
+- [ ] `@ToString(exclude = {...})` on lazy associations; never use `@Data` on JPA entities; entities with sensitive data delegate their text representation to the centralized masking infrastructure.
 
-## Service / controller / autorização
+## Service / controller / authorization
 
-- [ ] Todo método de controller possui `@PreAuthorize` explícito; não existe acesso protegido implícito nesta aplicação.
-- [ ] Recursos pertencentes a um usuário específico validam ownership na camada de serviço após o carregamento da entidade e seguem a estratégia de resposta definida pela arquitetura do projeto.
-- [ ] Novos `ErrorCode` seguem a convenção de nomenclatura e numeração existente; nunca reutilizar um código para um significado diferente.
-- [ ] `import` sempre no topo do arquivo; evitar nomes totalmente qualificados no corpo do código, salvo conflito entre classes homônimas.
-- [ ] Chamadas intra-classe a métodos anotados com `@Transactional`, `@PreAuthorize`, `@Cacheable` ou outros aspectos Spring passam pelo bean gerenciado (proxy), nunca por `this`.
-- [ ] Toda classe de service com `@NotNull`/`@Positive`/etc. em parâmetro de método tem `@Validated` na classe — sem isso a anotação é decorativa e nunca dispara `ConstraintViolationException`.
-- [ ] Busca, filtro e paginação reutilizam a infraestrutura compartilhada do projeto; validações de campo/tipo devem ser resolvidas a partir do metamodel JPA, evitando duplicação manual de metadados por domínio.
+- [ ] Every controller method has an explicit `@PreAuthorize`; there is no implicit protected access in this application.
+- [ ] Resources belonging to a specific user validate ownership in the service layer after loading the entity, following the response strategy defined by the project's architecture.
+- [ ] New `ErrorCode`s follow the existing naming/numbering convention; never reuse a code for a different meaning.
+- [ ] `import`s always at the top of the file; avoid fully-qualified names in the code body, except when resolving a conflict between same-named classes.
+- [ ] Intra-class calls to methods annotated with `@Transactional`, `@PreAuthorize`, `@Cacheable` or other Spring aspects go through the managed bean (proxy), never through `this`.
+- [ ] Every service class using `@NotNull`/`@Positive`/etc. on a method parameter has `@Validated` on the class — without it the annotation is decorative and never triggers `ConstraintViolationException`.
+- [ ] Search, filtering and pagination reuse the project's shared infrastructure; field/type validation is resolved from the JPA metamodel, avoiding manual per-domain metadata duplication.
 
-## Baseline de segurança (não desativar por acidente)
+## Security baseline (don't disable by accident)
 
-- [ ] Security headers, rate limiting, limite de tamanho de request, validação de `aud` do JWT e CORS fail-fast em produção permanecem ativos; nenhuma dessas proteções foi desabilitada ou contornada para viabilizar uma implementação ou teste.
-- [ ] Swagger/OpenAPI continua desabilitado fora do profile `dev` (garantido por `SwaggerDisabledByDefaultTest`, que lê `application.yml` de verdade - não depende só de revisão manual).
-- [ ] Segredos, chaves, tokens e connection strings nunca são commitados em código, `application.yml` versionado ou migrations; utilizar exclusivamente variáveis de ambiente ou secret manager.
-- [ ] Dados sensíveis nunca aparecem em `log.info`, `log.warn` ou `log.error` em texto claro (incluindo payloads de erro de validação) e não são expostos em `ResponseDto` sem necessidade real. Campos anotados com `@Sensitive` devem utilizar exclusivamente a infraestrutura centralizada de mascaramento (`SensitiveDataMasker`, `SensitiveFieldsModule`) - isso continua sendo responsabilidade do autor da feature, não é automático. `logback.xml` aplica uma rede de segurança adicional (regex sobre padrões conhecidos - JWT, e-mail, CPF) em toda mensagem/stack trace logada, cobrindo o caso de uma exceção arbitrária carregar dado sensível na mensagem (ex. `GlobalExceptionHandler#handleUnexpected`), mas não substitui o cuidado com `@Sensitive` em campos estruturados nem cobre padrões fora da lista.
+- [ ] Security headers, rate limiting, request size limit, JWT `aud` validation and fail-fast CORS in production remain active; none of these protections were disabled or bypassed to make an implementation or test easier.
+- [ ] Swagger/OpenAPI stays disabled outside the `dev` profile (enforced by `SwaggerDisabledByDefaultTest`, which reads the real `application.yml` - not just manual review).
+- [ ] Secrets, keys, tokens and connection strings are never committed in code, versioned `application.yml`, or migrations; use environment variables or a secret manager exclusively.
+- [ ] Sensitive data never appears in `log.info`, `log.warn` or `log.error` in plain text (including validation error payloads) and is not exposed in a `ResponseDto` without a real need. Fields annotated with `@Sensitive` must use exclusively the centralized masking infrastructure (`SensitiveDataMasker`, `SensitiveFieldsModule`) - this remains the feature author's responsibility, it is not automatic. `logback.xml` applies an additional safety net (regex over known patterns - JWT, email, tax id) to every logged message/stack trace, covering the case of an arbitrary exception carrying sensitive data in its message (e.g. `GlobalExceptionHandler#handleUnexpected`), but it does not replace care with `@Sensitive` on structured fields, nor does it cover patterns outside that list.
 
-## Antes de considerar a mudança pronta
+## Before considering the change done
 
-- [ ] `mvn pmd:check` executado sem violações (gate real do build; `mvn verify` falha em caso de infrações).
-- [ ] Testes relevantes executados (`mvn test -Dtest=<Classe>`), não apenas compilados.
-- [ ] Falhas conhecidas da infraestrutura de testes (Docker/Testcontainers, ambiente local etc.) foram descartadas antes de concluir que existe um defeito na implementação.
-- [ ] Toda migration nova foi revisada manualmente. Ferramentas de autogeração definem apenas a estrutura; alterações em dados, índices, constraints e estratégia de rollback foram validadas explicitamente.
-- [ ] Nenhuma classe/método/anotação novo utilizado está marcado `@Deprecated` (ou `deprecated since ... for removal`) na versão das dependências do projeto; havendo alternativa não depreciada, ela foi adotada em vez da API antiga.
-- [ ] Checagens de nulo/vazio usam o método acessório positivo (`StringUtils.isBlank`/`isNotBlank`, `CollectionUtils.isEmpty`/`isNotEmpty`), nunca a negação do oposto (`!hasText`, `!isNotEmpty`) nem duas condições manuais (`x != null && !x.isEmpty()`). Para regras de negócio sem método pronto, a condição foi extraída num método nomeado afirmativamente (ex. `isCancelable()`) em vez de negação (`!`) repetida nos pontos de uso.
+- [ ] `mvn pmd:check` run with no violations (real build gate; `mvn verify` fails on violations).
+- [ ] Relevant tests run (`mvn test -Dtest=<Class>`), not just compiled.
+- [ ] Known test infrastructure failures (Docker/Testcontainers, local environment, etc.) were ruled out before concluding there's a defect in the implementation.
+- [ ] Every new migration was reviewed manually. Autogeneration tools only define the structure; changes to data, indexes, constraints and rollback strategy were explicitly validated.
+- [ ] No new class/method/annotation in use is marked `@Deprecated` (or `deprecated since ... for removal`) in the project's dependency versions; where a non-deprecated alternative exists, it was adopted instead of the old API.
+- [ ] Null/empty checks use the positive accessor method (`StringUtils.isBlank`/`isNotBlank`, `CollectionUtils.isEmpty`/`isNotEmpty`), never the negation of the opposite (`!hasText`, `!isNotEmpty`) nor two manual conditions (`x != null && !x.isEmpty()`). For business rules without a ready-made method, the condition was extracted into an affirmatively named method (e.g. `isCancelable()`) instead of repeated negation (`!`) at the call sites.
 
-O detalhamento completo de cada item (motivação, exceções válidas, decisões arquiteturais e exemplos) está documentado na skill `spring-feature`. Este arquivo é apenas um checklist operacional utilizado antes de considerar uma tarefa concluída.
+The full detail of each item (motivation, valid exceptions, architectural decisions and examples)
+is documented in the `spring-feature` skill. This file is only the operational checklist used
+before considering a task done.

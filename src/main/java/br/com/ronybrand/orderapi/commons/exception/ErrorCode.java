@@ -12,27 +12,27 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ErrorCode {
 
-    VALIDATION_MISSING_FIELD("VALIDATION-01", "Campo obrigatório ausente"),
-    VALIDATION_CUSTOMER_TAXID_EXISTS("VALIDATION-02", "Tax ID já cadastrado para outro customer"),
-    VALIDATION_CUSTOMER_PASSPORT_EXISTS("VALIDATION-03", "Passport number já cadastrado para outro customer"),
-    VALIDATION_CUSTOMER_HAS_ORDERS("VALIDATION-04", "Customer possui orders associados e não pode ser excluído"),
-    VALIDATION_INVALID_CUSTOMER_ID("VALIDATION-05", "customerId inexistente"),
-    VALIDATION_ORDER_NOT_EDITABLE("VALIDATION-06", "Order não está em status editável"),
-    VALIDATION_ORDER_EMPTY("VALIDATION-07", "Order não possui itens"),
-    VALIDATION_ORDER_INVALID_STATUS_TRANSITION("VALIDATION-08", "Transição de status inválida"),
-    VALIDATION_INVALID_FILTER_VALUE("VALIDATION-09", "Valor de filtro inválido"),
-    VALIDATION_INVALID_SORT_FIELD("VALIDATION-10", "Campo de ordenação inválido"),
-    VALIDATION_CONSTRAINT_VIOLATION("VALIDATION-11", "Violação de validação de campo"),
+    VALIDATION_MISSING_FIELD("VALIDATION-01", "Missing required field"),
+    VALIDATION_CUSTOMER_TAXID_EXISTS("VALIDATION-02", "Tax ID already registered for another customer"),
+    VALIDATION_CUSTOMER_PASSPORT_EXISTS("VALIDATION-03", "Passport number already registered for another customer"),
+    VALIDATION_CUSTOMER_HAS_ORDERS("VALIDATION-04", "Customer has associated orders and cannot be deleted"),
+    VALIDATION_INVALID_CUSTOMER_ID("VALIDATION-05", "customerId does not exist"),
+    VALIDATION_ORDER_NOT_EDITABLE("VALIDATION-06", "Order is not in an editable status"),
+    VALIDATION_ORDER_EMPTY("VALIDATION-07", "Order has no items"),
+    VALIDATION_ORDER_INVALID_STATUS_TRANSITION("VALIDATION-08", "Invalid status transition"),
+    VALIDATION_INVALID_FILTER_VALUE("VALIDATION-09", "Invalid filter value"),
+    VALIDATION_INVALID_SORT_FIELD("VALIDATION-10", "Invalid sort field"),
+    VALIDATION_CONSTRAINT_VIOLATION("VALIDATION-11", "Field validation violation"),
 
-    RESOURCE_NOT_FOUND_CUSTOMER("RESOURCE-NOT-FOUND-01", "Customer não encontrado"),
-    RESOURCE_NOT_FOUND_ORDER("RESOURCE-NOT-FOUND-02", "Order não encontrado"),
-    RESOURCE_NOT_FOUND_ITEM("RESOURCE-NOT-FOUND-03", "Item não encontrado"),
+    RESOURCE_NOT_FOUND_CUSTOMER("RESOURCE-NOT-FOUND-01", "Customer not found"),
+    RESOURCE_NOT_FOUND_ORDER("RESOURCE-NOT-FOUND-02", "Order not found"),
+    RESOURCE_NOT_FOUND_ITEM("RESOURCE-NOT-FOUND-03", "Item not found"),
 
-    CONFLICT_CONCURRENT_MODIFICATION("CONFLICT-01", "Conflito de concorrência (modificação simultânea)"),
-    CONFLICT_DATA_INTEGRITY_VIOLATION("CONFLICT-02", "Violação de integridade de dados"),
+    CONFLICT_CONCURRENT_MODIFICATION("CONFLICT-01", "Concurrency conflict (simultaneous modification)"),
+    CONFLICT_DATA_INTEGRITY_VIOLATION("CONFLICT-02", "Data integrity violation"),
 
-    AUTHORIZATION_ACCESS_DENIED("AUTHORIZATION-01", "Acesso negado"),
-    INTERNAL_ERROR("INTERNAL-ERROR", "Erro interno inesperado");
+    AUTHORIZATION_ACCESS_DENIED("AUTHORIZATION-01", "Access denied"),
+    INTERNAL_ERROR("INTERNAL-ERROR", "Unexpected internal error");
 
     private final String code;
     private final String description;

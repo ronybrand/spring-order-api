@@ -15,7 +15,7 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
-      # mvn verify roda unit tests, *IT (Testcontainers sobe Postgres via Docker, disponivel
-      # nativamente nos runners Linux hospedados do GitHub), o gate de cobertura do JaCoCo
-      # (linha 80% / branch 65% minimo) e o PMD (hard-fail em violação).
+      # mvn verify runs unit tests, *IT (Testcontainers spins up Postgres via Docker, available
+      # natively on GitHub-hosted Linux runners), the JaCoCo coverage gate
+      # (80% line / 65% branch minimum) and PMD (hard-fail on violation).
       - run: ./mvnw -B verify
