@@ -18,10 +18,6 @@
     </rule>
 
     <rule ref="category/java/errorprone.xml">
-        <!-- High false-positive rate against Lombok-generated code (@Builder/@RequiredArgsConstructor):
-             PMD doesn't see the initialization Lombok generates and incorrectly reports a
-             "possibly undefined" variable. -->
-        <exclude name="DataflowAnomalyAnalysis"/>
         <!-- No entity/DTO in this project implements java.io.Serializable by design (JPA entities
              don't need to, DTOs are records) - rule doesn't apply to this codebase. -->
         <exclude name="MissingSerialVersionUID"/>
