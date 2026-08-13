@@ -67,7 +67,7 @@
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>3.0.3</version>
+			<version>3.1.0</version>
 		</dependency>
 		<!-- PostgreSQL in every environment (dev via docker-compose, IT via Testcontainers, production via env vars) -->
 		<dependency>
@@ -87,7 +87,7 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-collections4</artifactId>
-			<version>4.5.0</version>
+			<version>4.6.0</version>
 		</dependency>
 		<!-- Backs the rate limiter's window map with a bounded, self-expiring structure instead of a
 			 plain ConcurrentHashMap, so it doesn't grow unbounded with distinct IPs/users over the
