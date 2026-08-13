@@ -2,6 +2,11 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+	<!-- `mvn verify`'s PMD report goal prints "[WARNING] Unable to find a URL to the parent
+		 project. The parent menu will NOT be added." on every run. Verified experimentally that
+		 adding a <url> to this POM does NOT clear it - it refers to spring-boot-starter-parent's
+		 own (external, Spring-owned) POM lacking a resolvable site URL. Not fixable from here;
+		 harmless, since this project doesn't publish a Maven site. -->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
