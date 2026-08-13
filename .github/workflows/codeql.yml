@@ -22,6 +22,11 @@ jobs:
       - uses: github/codeql-action/init@v4.37.6
         with:
           languages: java-kotlin
+          # Declaring "manual" (we build with Maven below) still prints a "Cannot build an
+          # overlay database ... instead of 'none'" fallback warning every run - overlay analysis
+          # only activates for build-mode "none", which isn't a fit here since Lombok's
+          # annotation-processing-generated code needs an actual compile to be extracted
+          # accurately. Harmless; not fixable without giving up build-mode: manual.
           build-mode: manual
       # CodeQL para Java precisa observar a build para resolver o classpath/bytecode -
       # skip de testes para o scan ser mais rapido, sem afetar a analise estatica.
