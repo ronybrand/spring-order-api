@@ -13,5 +13,5 @@ import java.util.UUID;
  */
 public record OrderCreateRequestDto(
         @NotNull UUID customerId,
-        @NotNull @Valid @Size(max = 200) List<ItemRequestDto> items) {
+        @NotNull @Size(max = 200) List<@Valid ItemRequestDto> items) {
 }
