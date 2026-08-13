@@ -65,3 +65,11 @@ This applies to new features as well as bug fixes, refactors and audits of exist
 The full detail of each item (motivation, valid exceptions, architectural decisions and examples)
 is documented in the `spring-feature` skill. This file is only the operational checklist used
 before considering a task done.
+
+## Known no-op JVM warnings (recheck on next Lombok/Testcontainers/Maven-wrapper bump or JDK upgrade)
+
+`sun.misc.Unsafe` (Lombok's `lombok.permit.Permit`, Guava's `AbstractFuture` bundled inside the
+Maven distribution) and restricted `System::load` (Jansi bundled inside the Maven distribution,
+JNA via Testcontainers) warnings show up on every CI run. Not fixable from this repo's config as
+of 2026-08 - re-verify next time one of these gets bumped, since a newer release may adopt the
+JDK's FFM/VarHandle APIs and drop the warning.
