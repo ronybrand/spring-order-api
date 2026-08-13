@@ -22,6 +22,7 @@ jobs:
       - uses: github/codeql-action/init@v4.37.6
         with:
           languages: java-kotlin
+          build-mode: manual
       # CodeQL para Java precisa observar a build para resolver o classpath/bytecode -
       # skip de testes para o scan ser mais rapido, sem afetar a analise estatica.
       - run: ./mvnw -B -DskipTests package
