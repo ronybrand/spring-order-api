@@ -15,7 +15,7 @@ below). For the full endpoint list, see
 
 ```mermaid
 flowchart LR
-    Client -->|HTTPS| JWT["JWT<br/>(resource-server auth)"] --> RateLimit[RateLimitFilter] --> Controller[OrderController] --> OrderService --> Repository[OrderRepository] --> DB[(PostgreSQL)]
+    Client -->|HTTPS| RequestId[RequestIdFilter] --> MaxSize[MaxRequestSizeFilter] --> RateLimit[RateLimitFilter] --> JWT["JWT<br/>(resource-server auth)"] --> Controller[OrderController] --> OrderService --> Repository[OrderRepository] --> DB[(PostgreSQL)]
 ```
 
 OrderService publishes a `StatusChanged` event ⤵
@@ -24,13 +24,14 @@ OrderService publishes a `StatusChanged` event ⤵
 
 ```mermaid
 flowchart LR
-    Event[StatusChanged event] --> Listener[OrderStatusEventListener] -->|publish| Queue[[RabbitMQ queue]] -->|consume| Consumer[OrderNotificationRabbitListener] --> Email[EmailService] --> Customer([Customer inbox])
+    Event[StatusChanged event] --> Listener[OrderStatusEventListener] -->|publish| Queue[[order.status.notifications.queue]] -->|consume| Consumer[OrderNotificationRabbitListener] --> Email[EmailService] --> Customer([Customer inbox])
     Consumer -.->|retry / DLQ| Queue
 ```
 
-Creating or updating an order runs synchronously through the auth and rate-limit filters into
-the controller, `OrderService`, and the repository/database, then the controller returns the
-response once `OrderService` finishes (`201` for create, `200` for update). A status change
+Creating or updating an order runs synchronously through `RequestIdFilter`, `MaxRequestSizeFilter`
+and `RateLimitFilter` (in that `@Order` precedence), then Spring Security's JWT resource-server
+filter, into the controller, `OrderService`, and the repository/database - the controller returns
+the response once `OrderService` finishes (`201` for create, `200` for update). A status change
 from `confirm` or `cancel` (not every update) also fires an in-process event; a listener
 re-publishes it onto a RabbitMQ queue, drained by a separate consumer (with its own retry) that
 sends the email. The two paths never block each other.
@@ -88,6 +89,15 @@ automatically yet. To test manually against the real server (the automated `*Con
 CI also runs **CodeQL** static analysis on every PR and weekly on `main`
 (`.github/workflows/codeql.yml`), and **Dependabot** keeps Maven and GitHub Actions dependencies
 current via weekly grouped PRs (`.github/dependabot.yml`).
+
+## Sensitive data
+
+Fields classified as PII (e.g. `Customer.taxId`, `Customer.passportNumber`, `Customer.email`)
+are annotated with `@Sensitive` (`commons/security/Sensitive.java`). `SensitiveDataMasker`
+masks them (`***REDACTED***`) in the reflection-based `toString()` used by entities/logs, and
+`SensitiveFieldsModule` is a Jackson safety net that masks the same fields if an entity is ever
+serialized directly instead of going through a DTO (the project convention). Adding a new
+sensitive field only requires annotating it - no manual exclusion needed.
 
 ## Structure
 
