@@ -15,7 +15,7 @@ below). For the full endpoint list, see
 
 ```mermaid
 flowchart LR
-    Client -->|HTTPS| RequestId[RequestIdFilter] --> MaxSize[MaxRequestSizeFilter] --> RateLimit[RateLimitFilter] --> JWT["JWT<br/>(resource-server auth)"] --> Controller[OrderController] --> OrderService --> Repository[OrderRepository] --> DB[(PostgreSQL)]
+    Client -->|HTTPS| RequestId[RequestIdFilter] --> MaxSize[MaxRequestSizeFilter] --> RateLimit[RateLimitFilter] --> JWT["JWT<br/>(resource-server auth)"] --> Controller[OrderController] --> OrderService --> Repository["OrderRepository<br/>(Spring Data JPA / Hibernate)"] --> DB[(PostgreSQL)]
 ```
 
 OrderService publishes a `StatusChanged` event ⤵
@@ -39,7 +39,7 @@ sends the email. The two paths never block each other.
 ## Stack
 
 - Java 25, Spring Boot 4.1, Maven (wrapper included: `./mvnw`)
-- PostgreSQL + Liquibase (formatted SQL)
+- PostgreSQL + Liquibase (formatted SQL) + Spring Data JPA / Hibernate
 - Spring Security + OAuth2 Resource Server (Keycloak)
 - RabbitMQ + Mailpit (order status-change notifications)
 - JUnit 5 + Mockito + AssertJ + Testcontainers
