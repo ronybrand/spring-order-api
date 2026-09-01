@@ -9,6 +9,32 @@ conventions documented in `AGENTS.md` and the `spring-feature` skill (local, not
 below). For the full endpoint list, see
 [DOMAIN.md § Reference endpoints](./DOMAIN.md#8-reference-endpoints-original-implementations-http-contract).
 
+## Request &amp; notification flow
+
+**Order create/update (synchronous)**
+
+```mermaid
+flowchart LR
+    Client -->|HTTPS| JWT["JWT<br/>(resource-server auth)"] --> RateLimit[RateLimitFilter] --> Controller[OrderController] --> OrderService --> Repository[OrderRepository] --> DB[(PostgreSQL)]
+```
+
+OrderService publishes a `StatusChanged` event ⤵
+
+**Notification (asynchronous)**
+
+```mermaid
+flowchart LR
+    Event[StatusChanged event] --> Listener[OrderStatusEventListener] -->|publish| Queue[[RabbitMQ queue]] -->|consume| Consumer[OrderNotificationRabbitListener] --> Email[EmailService] --> Customer([Customer inbox])
+    Consumer -.->|retry / DLQ| Queue
+```
+
+Creating or updating an order runs synchronously through the auth and rate-limit filters into
+the controller, `OrderService`, and the repository/database, then the controller returns the
+response once `OrderService` finishes (`201` for create, `200` for update). A status change
+from `confirm` or `cancel` (not every update) also fires an in-process event; a listener
+re-publishes it onto a RabbitMQ queue, drained by a separate consumer (with its own retry) that
+sends the email. The two paths never block each other.
+
 ## Stack
 
 - Java 25, Spring Boot 4.1, Maven (wrapper included: `./mvnw`)
