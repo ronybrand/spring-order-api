@@ -80,6 +80,11 @@
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- MongoDB read-model (CQRS) for Order, populated asynchronously from the projection queue -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -143,6 +148,11 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers-mongodb</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!-- Consumer-driven contract testing (message pact) for the order-status-changed
@@ -221,14 +231,14 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
 					<!-- -Djava.net.preferIPv4Stack=true avoids Testcontainers network instability on Docker Desktop/WSL2 on Windows -->
-					<argLine>@{argLine} -Xmx512m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
+					<argLine>@{argLine} -Xmx1536m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
 				<configuration>
-					<argLine>@{argLine} -Xmx512m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
+					<argLine>@{argLine} -Xmx1536m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
 				</configuration>
 				<executions>
 					<execution>
