@@ -36,6 +36,15 @@ from `confirm` or `cancel` (not every update) also fires an in-process event; a 
 re-publishes it onto a RabbitMQ queue, drained by a separate consumer (with its own retry) that
 sends the email. The two paths never block each other.
 
+The shape of that `order.status.notifications.queue` message is a **consumer-driven contract**
+(Pact JVM message pact), not just an assumption shared by convention: `OrderStatusMessagePactConsumerTest`
+declares, from `OrderNotificationRabbitListener`'s point of view, what it needs to parse the
+message and feeds a pact-generated message straight into the real listener; `OrderStatusMessagePactProviderTest`
+then verifies that the actual producer output - built with the same `JacksonJsonMessageConverter`
+`RabbitTemplate` uses in production, not a hand-rolled serializer - satisfies that contract. Both
+run as part of `./mvnw verify`, no broker required (the generated pact file lives under
+`target/pacts/`).
+
 ## Stack
 
 - Java 25, Spring Boot 4.1, Maven (wrapper included: `./mvnw`)
