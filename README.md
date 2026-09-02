@@ -43,7 +43,7 @@ message and feeds a pact-generated message straight into the real listener; `Ord
 then verifies that the actual producer output - built with the same `JacksonJsonMessageConverter`
 `RabbitTemplate` uses in production, not a hand-rolled serializer - satisfies that contract. Both
 run as part of `./mvnw verify`, no broker required (the generated pact file lives under
-`target/pacts/`).
+`target/pacts/`) - see [ADR 0005](./docs/adr/0005-message-pact-without-broker.md) for why.
 
 ## Stack
 
