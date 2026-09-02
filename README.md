@@ -116,3 +116,8 @@ RabbitMQ/email flow for order status-change events; cross-cutting code lives in 
 convention details: the `spring-feature` skill
 (`.claude/skills/spring-feature/SKILL.md`, local/gitignored) and `AGENTS.md` (versioned
 summary checklist).
+
+## Architecture decisions
+
+Non-obvious technical decisions (and the alternatives considered) are logged in
+[`docs/adr/`](./docs/adr/README.md) as Architecture Decision Records.
