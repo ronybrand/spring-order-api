@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.MongoClientSettings;
 import org.bson.UuidRepresentation;
 import org.springframework.amqp.core.Binding;
@@ -7,6 +8,8 @@ import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.boot.mongodb.autoconfigure.MongoClientSettingsBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -70,5 +73,29 @@ public class OrderProjectionConfig {
     @Bean
     MongoClientSettingsBuilderCustomizer uuidRepresentationCustomizer() {
         return (final MongoClientSettings.Builder builder) -> builder.uuidRepresentation(UuidRepresentation.STANDARD);
+    }
+
+    /**
+     * A dedicated, explicit {@code ObjectMapper} for {@link OrderProjectionRabbitListener} to parse
+     * the raw message body itself - deliberately duplicated from
+     * {@code notification.RabbitMQConfig#orderStatusObjectMapper} rather than reused/renamed,
+     * to honor keeping that class untouched (its exchange is semantically coupled to the email
+     * flow and shouldn't gain a second, unrelated reason to change).
+     */
+    @Bean
+    ObjectMapper orderProjectionObjectMapper() {
+        return new ObjectMapper().findAndRegisterModules();
+    }
+
+    @Bean
+    SimpleMessageListenerContainer orderProjectionContainer(final ConnectionFactory connectionFactory,
+            final OrderProjectionRabbitListener listener) {
+        final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
+        container.setQueueNames(QUEUE);
+        container.setMessageListener(listener);
+        // Same safety net as notification.RabbitMQConfig#orderNotificationContainer: any exception
+        // escaping the listener's own classification must still go to the DLQ, not requeue forever.
+        container.setDefaultRequeueRejected(false);
+        return container;
     }
 }
