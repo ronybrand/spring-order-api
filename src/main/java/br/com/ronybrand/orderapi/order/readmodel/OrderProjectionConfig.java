@@ -2,12 +2,61 @@ package br.com.ronybrand.orderapi.order.readmodel;
 
 import com.mongodb.MongoClientSettings;
 import org.bson.UuidRepresentation;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.boot.mongodb.autoconfigure.MongoClientSettingsBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Topology for the order-changed projection: an exchange/queue isolated from
+ * {@code notification.RabbitMQConfig} (which is semantically coupled to the email flow) - a
+ * separate consumer-purpose gets a separate exchange, not a shared one with a second routing key.
+ */
 @Configuration
 public class OrderProjectionConfig {
+
+    public static final String EXCHANGE = "order.projection.exchange";
+    public static final String DEAD_LETTER_EXCHANGE = "order.projection.exchange.dlx";
+    public static final String ROUTING_KEY = "order.changed";
+    public static final String QUEUE = "order.projection.queue";
+    public static final String DEAD_LETTER_QUEUE = "order.projection.dlq";
+
+    @Bean
+    DirectExchange orderProjectionExchange() {
+        return new DirectExchange(EXCHANGE, true, false);
+    }
+
+    @Bean
+    DirectExchange orderProjectionDeadLetterExchange() {
+        return new DirectExchange(DEAD_LETTER_EXCHANGE, true, false);
+    }
+
+    @Bean
+    Queue orderProjectionQueue() {
+        return QueueBuilder.durable(QUEUE)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", ROUTING_KEY)
+                .build();
+    }
+
+    @Bean
+    Queue orderProjectionDeadLetterQueue() {
+        return QueueBuilder.durable(DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    Binding orderProjectionBinding() {
+        return BindingBuilder.bind(orderProjectionQueue()).to(orderProjectionExchange()).with(ROUTING_KEY);
+    }
+
+    @Bean
+    Binding orderProjectionDeadLetterBinding() {
+        return BindingBuilder.bind(orderProjectionDeadLetterQueue()).to(orderProjectionDeadLetterExchange()).with(ROUTING_KEY);
+    }
 
     /**
      * The MongoDB Java driver refuses to encode {@code UUID} fields (like {@link OrderView#getId()}
