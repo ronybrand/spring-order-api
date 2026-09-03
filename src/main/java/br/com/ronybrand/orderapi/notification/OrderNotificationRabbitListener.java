@@ -3,11 +3,13 @@ package br.com.ronybrand.orderapi.notification;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageListener;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,18 +22,31 @@ import org.springframework.stereotype.Component;
  * retried, transient failure retried with backoff up to {@link NotificationRetryPolicy#MAX_RETRIES},
  * then rejected without requeue - {@code x-dead-letter-exchange} on the queue routes it to the
  * DLQ either way.
+ *
+ * <p>Sending an email is not naturally idempotent (unlike the read-model's Mongo upsert) - a
+ * RabbitMQ redelivery of an already-processed message (e.g. connection dropped between the send
+ * succeeding and the ack reaching the broker) would otherwise duplicate the email to the
+ * customer. Guarded with a Redis idempotency key (`SET NX` semantics via a plain existence check
+ * before sending, since this consumer is single-threaded - no concurrent claim race to close),
+ * written only *after* the send succeeds so a message that ends up retried/DLQ'd is never
+ * wrongly marked as already sent.
  */
 @Slf4j
 @Component
 public class OrderNotificationRabbitListener implements MessageListener {
 
+    private static final Duration IDEMPOTENCY_KEY_TTL = Duration.ofHours(24);
+
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
+    private final StringRedisTemplate stringRedisTemplate;
 
     public OrderNotificationRabbitListener(final EmailService emailService,
-            @Qualifier("orderStatusObjectMapper") final ObjectMapper objectMapper) {
+            @Qualifier("orderStatusObjectMapper") final ObjectMapper objectMapper,
+            final StringRedisTemplate stringRedisTemplate) {
         this.emailService = emailService;
         this.objectMapper = objectMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     @Override
@@ -43,7 +58,18 @@ public class OrderNotificationRabbitListener implements MessageListener {
             log.warn("{} - sending straight to DLQ", e.getMessage());
             throw new AmqpRejectAndDontRequeueException(e.getMessage(), e);
         }
+
+        final String idempotencyKey = idempotencyKey(event);
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(idempotencyKey))) {
+            log.info("Notification already sent, skipping: orderId={}", event.orderId());
+            return;
+        }
         sendWithRetry(event);
+        stringRedisTemplate.opsForValue().set(idempotencyKey, "1", IDEMPOTENCY_KEY_TTL);
+    }
+
+    private String idempotencyKey(final OrderStatusChangedEvent event) {
+        return "notification:sent:" + event.orderId() + ":" + event.newStatus();
     }
 
     private OrderStatusChangedEvent parse(final Message message) {
