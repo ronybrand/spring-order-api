@@ -85,6 +85,12 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-mongodb</artifactId>
 		</dependency>
+		<!-- Idempotency key for the notification consumer (SET NX + TTL), preventing a duplicate
+			 email on RabbitMQ redelivery of an already-processed message. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -153,6 +159,16 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-mongodb</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- No dedicated org.testcontainers Redis module exists (the official one is a third-party
+			 com.redis:testcontainers-redis artifact) - a plain GenericContainer against the redis
+			 image, via the core org.testcontainers:testcontainers artifact already brought in
+			 transitively by testcontainers-junit-jupiter above, is simpler and stays within the
+			 same BOM-managed group as the rest of this project's Testcontainers modules. -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>testcontainers</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!-- Consumer-driven contract testing (message pact) for the order-status-changed
