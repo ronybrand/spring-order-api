@@ -45,18 +45,39 @@ then verifies that the actual producer output - built with the same `JacksonJson
 run as part of `./mvnw verify`, no broker required (the generated pact file lives under
 `target/pacts/`) - see [ADR 0005](./docs/adr/0005-message-pact-without-broker.md) for why.
 
+**Order view (CQRS read-model, asynchronous)**
+
+```mermaid
+flowchart LR
+    Changed[OrderChanged event] --> Bridge[OrderChangedEventListener] -->|publish| PQueue[[order.projection.queue]] -->|consume| PConsumer[OrderProjectionRabbitListener] --> Mongo[(MongoDB<br/>order_views)]
+    PConsumer -.->|retry / DLQ| PQueue
+    Mongo --> ViewController[OrderViewController] -->|GET /orders/id/view| ViewClient[Client]
+```
+
+A second, purely technical event - `OrderChangedEvent`, unconditional, unlike the business-gated
+`OrderStatusChangedEvent` above - fires from every mutating `OrderService` method (create, item
+changes, confirm, cancel; not delete yet). `OrderChangedEventListener` re-fetches the order
+(fetch-joined, since the original request's transaction has already committed by then) and
+publishes a full snapshot onto its own RabbitMQ exchange/queue, isolated from the notification
+topology. `OrderProjectionRabbitListener` upserts that snapshot into MongoDB as an `OrderView`
+document - denormalized, `@Version`-free (last-write-wins is an accepted trade-off for a
+disposable projection), served back through `GET /orders/{id}/view`. Eventually consistent: a
+`404` right after a write can mean the projection just hasn't caught up yet, not that the order
+doesn't exist.
+
 ## Stack
 
 - Java 25, Spring Boot 4.1, Maven (wrapper included: `./mvnw`)
 - PostgreSQL + Liquibase (formatted SQL) + Spring Data JPA / Hibernate
+- MongoDB + Spring Data MongoDB (order view read-model)
 - Spring Security + OAuth2 Resource Server (Keycloak)
-- RabbitMQ + Mailpit (order status-change notifications)
-- JUnit 5 + Mockito + AssertJ + Testcontainers
+- RabbitMQ + Mailpit (order status-change notifications and view projection)
+- JUnit 5 + Mockito + AssertJ + Testcontainers + Pact JVM
 
 ## Running locally
 
 ```bash
-docker compose up -d postgres keycloak keycloak-db
+docker compose up -d postgres keycloak keycloak-db rabbitmq mongo
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
@@ -111,9 +132,10 @@ sensitive field only requires annotating it - no manual exclusion needed.
 ## Structure
 
 Package by feature (not by layer) - `customer/` and `order/` each contain their
-entity/controller/service/repository/DTOs/specification together; `notification/` holds the
-RabbitMQ/email flow for order status-change events; cross-cutting code lives in `commons/`. Full
-convention details: the `spring-feature` skill
+entity/controller/service/repository/DTOs/specification together; `order/readmodel/` holds the
+MongoDB CQRS read-model (its own RabbitMQ topology, consumer, and `GET /orders/{id}/view`
+endpoint); `notification/` holds the RabbitMQ/email flow for order status-change events;
+cross-cutting code lives in `commons/`. Full convention details: the `spring-feature` skill
 (`.claude/skills/spring-feature/SKILL.md`, local/gitignored) and `AGENTS.md` (versioned
 summary checklist).
 
