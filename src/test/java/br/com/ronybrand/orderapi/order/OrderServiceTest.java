@@ -105,6 +105,18 @@ class OrderServiceTest {
     }
 
     @Test
+    void create_ShouldPublishOrderChangedEvent() {
+        final UUID customerId = UUID.randomUUID();
+        final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
+        when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.of(customer));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(customerId, List.of());
+
+        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+    }
+
+    @Test
     void findById_ShouldReturnOrderResponseDto_WhenExists() {
         final UUID customerId = UUID.randomUUID();
         final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
@@ -175,6 +187,17 @@ class OrderServiceTest {
     }
 
     @Test
+    void addItem_ShouldPublishOrderChangedEvent_WhenSucceeds() {
+        final Order order = openOrderWith();
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.addItem(order.getId(), item("Widget", "10.00", 1));
+
+        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+    }
+
+    @Test
     void addItem_ShouldThrowInvalidInputException_WhenOrderIsNotOpen() {
         final Order order = openOrderWith();
         order.setStatus(OrderStatus.CONFIRMED);
@@ -199,6 +222,18 @@ class OrderServiceTest {
         final OrderResponseDto result = service.updateItemQuantity(order.getId(), existingItem.getId(), 5);
 
         assertThat(result.total()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    void updateItemQuantity_ShouldPublishOrderChangedEvent_WhenSucceeds() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.updateItemQuantity(order.getId(), existingItem.getId(), 5);
+
+        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
     }
 
     @Test
@@ -238,6 +273,18 @@ class OrderServiceTest {
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.total()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void removeItem_ShouldPublishOrderChangedEvent_WhenSucceeds() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.removeItem(order.getId(), existingItem.getId());
+
+        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
     }
 
     @Test
@@ -306,7 +353,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void confirm_ShouldPublishEvent_WhenCustomerHasEmail() {
+    void confirm_ShouldPublishStatusChangedEvent_WhenCustomerHasEmail() {
         final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
         final Order order = openOrderWith(existingItem);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -318,10 +365,11 @@ class OrderServiceTest {
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().newStatus()).isEqualTo(OrderStatus.CONFIRMED);
         assertThat(captor.getValue().oldStatus()).isEqualTo(OrderStatus.OPEN);
+        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
     }
 
     @Test
-    void confirm_ShouldNotPublishEvent_WhenCustomerEmailIsBlank() {
+    void confirm_ShouldNotPublishStatusChangedEvent_ButShouldPublishOrderChangedEvent_WhenCustomerEmailIsBlank() {
         final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
         final Order order = openOrderWith(existingItem);
         order.getCustomer().setEmail("");
@@ -330,7 +378,8 @@ class OrderServiceTest {
 
         service.confirm(order.getId());
 
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(eventPublisher, never()).publishEvent(any(OrderStatusChangedEvent.class));
+        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
     }
 
     @Test
@@ -371,7 +420,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void cancel_ShouldPublishEvent_WhenCustomerHasEmail() {
+    void cancel_ShouldPublishStatusChangedEvent_WhenCustomerHasEmail() {
         final Order order = openOrderWith();
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -381,6 +430,7 @@ class OrderServiceTest {
         final ArgumentCaptor<OrderStatusChangedEvent> captor = ArgumentCaptor.forClass(OrderStatusChangedEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().newStatus()).isEqualTo(OrderStatus.CANCELED);
+        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
     }
 
     @Test

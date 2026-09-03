@@ -3,11 +3,11 @@ package br.com.ronybrand.orderapi.notification;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageListener;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,11 +23,16 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OrderNotificationRabbitListener implements MessageListener {
 
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
+
+    public OrderNotificationRabbitListener(final EmailService emailService,
+            @Qualifier("orderStatusObjectMapper") final ObjectMapper objectMapper) {
+        this.emailService = emailService;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public void onMessage(final Message message) {

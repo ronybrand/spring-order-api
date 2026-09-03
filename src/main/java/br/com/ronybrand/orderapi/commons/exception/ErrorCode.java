@@ -27,6 +27,7 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND_CUSTOMER("RESOURCE-NOT-FOUND-01", "Customer not found"),
     RESOURCE_NOT_FOUND_ORDER("RESOURCE-NOT-FOUND-02", "Order not found"),
     RESOURCE_NOT_FOUND_ITEM("RESOURCE-NOT-FOUND-03", "Item not found"),
+    RESOURCE_NOT_FOUND_ORDER_VIEW("RESOURCE-NOT-FOUND-04", "Order view not found"),
 
     CONFLICT_CONCURRENT_MODIFICATION("CONFLICT-01", "Concurrency conflict (simultaneous modification)"),
     CONFLICT_DATA_INTEGRITY_VIOLATION("CONFLICT-02", "Data integrity violation"),

@@ -75,6 +75,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
         log.info("Order created: id={}", saved.getId());
         return OrderResponseDto.from(saved);
     }
@@ -108,6 +109,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
         log.info("Item added to order: orderId={}", orderId);
         return OrderResponseDto.from(saved);
     }
@@ -122,6 +124,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
         log.info("Item quantity updated: orderId={}, itemId={}", orderId, itemId);
         return OrderResponseDto.from(saved);
     }
@@ -136,6 +139,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
         log.info("Item removed from order: orderId={}, itemId={}", orderId, itemId);
         return OrderResponseDto.from(saved);
     }
@@ -157,6 +161,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.setStatus(OrderStatus.CONFIRMED);
         final Order saved = orderRepository.save(order);
         publishStatusChangedEvent(saved, previousStatus, OrderStatus.CONFIRMED);
+        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
         log.info("Order confirmed: id={}", id);
         return OrderResponseDto.from(saved);
     }
@@ -178,6 +183,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.setStatus(OrderStatus.CANCELED);
         final Order saved = orderRepository.save(order);
         publishStatusChangedEvent(saved, previousStatus, OrderStatus.CANCELED);
+        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
         log.info("Order canceled: id={}", id);
         return OrderResponseDto.from(saved);
     }
