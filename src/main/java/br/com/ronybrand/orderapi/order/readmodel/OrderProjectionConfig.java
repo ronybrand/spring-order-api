@@ -15,9 +15,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Topology for the order-changed projection: an exchange/queue isolated from
- * {@code notification.RabbitMQConfig} (which is semantically coupled to the email flow) - a
- * separate consumer-purpose gets a separate exchange, not a shared one with a second routing key.
+ * Topology for the order-views projection: an exchange isolated from {@code notification.RabbitMQConfig}
+ * (which is semantically coupled to the email flow, a different consumer purpose) - but shared
+ * between the upsert and delete event types, since both serve the same purpose (keeping
+ * {@code order_views} in sync), each with its own routing key/queue/DLQ.
  */
 @Configuration
 public class OrderProjectionConfig {
@@ -27,6 +28,9 @@ public class OrderProjectionConfig {
     public static final String ROUTING_KEY = "order.changed";
     public static final String QUEUE = "order.projection.queue";
     public static final String DEAD_LETTER_QUEUE = "order.projection.dlq";
+    public static final String DELETE_ROUTING_KEY = "order.deleted";
+    public static final String DELETE_QUEUE = "order.projection.delete.queue";
+    public static final String DELETE_DEAD_LETTER_QUEUE = "order.projection.delete.dlq";
 
     @Bean
     DirectExchange orderProjectionExchange() {
@@ -59,6 +63,29 @@ public class OrderProjectionConfig {
     @Bean
     Binding orderProjectionDeadLetterBinding() {
         return BindingBuilder.bind(orderProjectionDeadLetterQueue()).to(orderProjectionDeadLetterExchange()).with(ROUTING_KEY);
+    }
+
+    @Bean
+    Queue orderProjectionDeleteQueue() {
+        return QueueBuilder.durable(DELETE_QUEUE)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DELETE_ROUTING_KEY)
+                .build();
+    }
+
+    @Bean
+    Queue orderProjectionDeleteDeadLetterQueue() {
+        return QueueBuilder.durable(DELETE_DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    Binding orderProjectionDeleteBinding() {
+        return BindingBuilder.bind(orderProjectionDeleteQueue()).to(orderProjectionExchange()).with(DELETE_ROUTING_KEY);
+    }
+
+    @Bean
+    Binding orderProjectionDeleteDeadLetterBinding() {
+        return BindingBuilder.bind(orderProjectionDeleteDeadLetterQueue()).to(orderProjectionDeadLetterExchange()).with(DELETE_ROUTING_KEY);
     }
 
     /**
@@ -95,6 +122,16 @@ public class OrderProjectionConfig {
         container.setMessageListener(listener);
         // Same safety net as notification.RabbitMQConfig#orderNotificationContainer: any exception
         // escaping the listener's own classification must still go to the DLQ, not requeue forever.
+        container.setDefaultRequeueRejected(false);
+        return container;
+    }
+
+    @Bean
+    SimpleMessageListenerContainer orderProjectionDeleteContainer(final ConnectionFactory connectionFactory,
+            final OrderDeletionRabbitListener listener) {
+        final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
+        container.setQueueNames(DELETE_QUEUE);
+        container.setMessageListener(listener);
         container.setDefaultRequeueRejected(false);
         return container;
     }

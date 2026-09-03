@@ -152,6 +152,7 @@ class OrderServiceTest {
         assertThat(order.getDeletedAt()).isNotNull();
         assertThat(order.getDeletedBy()).isEqualTo("some-user");
         verify(orderRepository).save(order);
+        verify(eventPublisher).publishEvent(new OrderDeletedEvent(orderId));
     }
 
     @Test
@@ -161,6 +162,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> service.delete(orderId)).isInstanceOf(ResourceNotFoundException.class);
         verify(orderRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(OrderDeletedEvent.class));
     }
 
     private static Order openOrderWith(final Item... items) {

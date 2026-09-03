@@ -91,6 +91,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         order.setDeletedBy(auditorAware.getCurrentAuditor().orElse(SYSTEM_USER));
         orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderDeletedEvent(id));
         log.info("Order deleted: id={}", id);
     }
 

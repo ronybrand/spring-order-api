@@ -63,4 +63,14 @@ class OrderProjectionIT extends AbstractAuthIntegrationTest {
 
         assertThat(orderViewRepository.findById(orderId.toString())).isPresent();
     }
+
+    @Test
+    void deleteById_ShouldRemoveFromRealMongo() {
+        final UUID orderId = UUID.randomUUID();
+        orderProjectionService.upsert(message(orderId));
+
+        orderProjectionService.deleteById(orderId);
+
+        assertThat(orderViewRepository.findById(orderId.toString())).isEmpty();
+    }
 }

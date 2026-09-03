@@ -25,6 +25,15 @@ public class OrderProjectionService {
         log.info("Order view upserted: orderId={}", message.orderId());
     }
 
+    public void deleteById(final UUID orderId) {
+        try {
+            orderViewRepository.deleteById(orderId.toString());
+        } catch (final DataAccessException e) {
+            throw new OrderProjectionWriteException("Failed to delete order view: orderId=" + orderId, e);
+        }
+        log.info("Order view deleted: orderId={}", orderId);
+    }
+
     public OrderViewResponseDto findById(final UUID orderId) {
         return orderViewRepository.findById(orderId.toString())
                 .map(OrderViewResponseDto::from)
