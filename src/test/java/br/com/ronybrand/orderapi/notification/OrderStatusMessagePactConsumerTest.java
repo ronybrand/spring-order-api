@@ -19,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * Consumer side of the message pact for the order-status-changed notification message:
@@ -55,7 +56,10 @@ class OrderStatusMessagePactConsumerTest {
     void listenerShouldParseAndActOnPactMessage(final List<Message> messages) {
         final EmailService emailService = mock(EmailService.class);
         final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        final OrderNotificationRabbitListener listener = new OrderNotificationRabbitListener(emailService, objectMapper);
+        final StringRedisTemplate stringRedisTemplate =
+                mock(StringRedisTemplate.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
+        final OrderNotificationRabbitListener listener =
+                new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate);
 
         final byte[] body = messages.get(0).contentsAsBytes();
         listener.onMessage(new org.springframework.amqp.core.Message(body, new MessageProperties()));
