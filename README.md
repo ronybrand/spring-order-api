@@ -45,6 +45,12 @@ then verifies that the actual producer output - built with the same `JacksonJson
 run as part of `./mvnw verify`, no broker required (the generated pact file lives under
 `target/pacts/`) - see [ADR 0005](./docs/adr/0005-message-pact-without-broker.md) for why.
 
+Sending an email isn't naturally idempotent the way the read-model's Mongo upsert is - a RabbitMQ
+redelivery of an already-processed message would otherwise duplicate the email to the customer.
+`OrderNotificationRabbitListener` guards this with a Redis idempotency key
+(`notification:sent:{orderId}:{newStatus}`), written only *after* the send succeeds so a message
+that ends up retried/DLQ'd is never wrongly marked as already sent.
+
 **Order view (CQRS read-model, asynchronous)**
 
 ```mermaid
@@ -70,6 +76,7 @@ doesn't exist.
 - Java 25, Spring Boot 4.1, Maven (wrapper included: `./mvnw`)
 - PostgreSQL + Liquibase (formatted SQL) + Spring Data JPA / Hibernate
 - MongoDB + Spring Data MongoDB (order view read-model)
+- Redis (notification idempotency key)
 - Spring Security + OAuth2 Resource Server (Keycloak)
 - RabbitMQ + Mailpit (order status-change notifications and view projection)
 - JUnit 5 + Mockito + AssertJ + Testcontainers + Pact JVM
@@ -77,7 +84,7 @@ doesn't exist.
 ## Running locally
 
 ```bash
-docker compose up -d postgres keycloak keycloak-db rabbitmq mongo
+docker compose up -d postgres keycloak keycloak-db rabbitmq mongo redis
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
