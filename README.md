@@ -57,12 +57,14 @@ that ends up retried/DLQ'd is never wrongly marked as already sent.
 flowchart LR
     Changed[OrderChanged event] --> Bridge[OrderChangedEventListener] -->|publish| PQueue[[order.projection.queue]] -->|consume| PConsumer[OrderProjectionRabbitListener] --> Mongo[(MongoDB<br/>order_views)]
     PConsumer -.->|retry / DLQ| PQueue
+    Deleted[OrderDeleted event] --> DelBridge[OrderDeletedEventListener] -->|publish| DQueue[[order.projection.delete.queue]] -->|consume| DConsumer[OrderDeletionRabbitListener] --> Mongo
+    DConsumer -.->|retry / DLQ| DQueue
     Mongo --> ViewController[OrderViewController] -->|GET /orders/id/view| ViewClient[Client]
 ```
 
 A second, purely technical event - `OrderChangedEvent`, unconditional, unlike the business-gated
-`OrderStatusChangedEvent` above - fires from every mutating `OrderService` method (create, item
-changes, confirm, cancel; not delete yet). `OrderChangedEventListener` re-fetches the order
+`OrderStatusChangedEvent` above - fires from every mutating `OrderService` method except `delete`
+(create, item changes, confirm, cancel). `OrderChangedEventListener` re-fetches the order
 (fetch-joined, since the original request's transaction has already committed by then) and
 publishes a full snapshot onto its own RabbitMQ exchange/queue, isolated from the notification
 topology. `OrderProjectionRabbitListener` upserts that snapshot into MongoDB as an `OrderView`
@@ -70,6 +72,12 @@ document - denormalized, `@Version`-free (last-write-wins is an accepted trade-o
 disposable projection), served back through `GET /orders/{id}/view`. Eventually consistent: a
 `404` right after a write can mean the projection just hasn't caught up yet, not that the order
 doesn't exist.
+
+`delete` has its own counterpart, `OrderDeletedEvent`: the order is already soft-deleted and
+hidden from every query by `@SQLRestriction` by the time the listener runs, so there's no
+snapshot to re-fetch - `OrderDeletedEventListener` publishes just the id onto a dedicated
+routing key on the same exchange, and `OrderDeletionRabbitListener` deletes the `OrderView`
+document outright, same retry/DLQ contract as the upsert path.
 
 ## Stack
 

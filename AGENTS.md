@@ -48,7 +48,7 @@ This applies to new features as well as bug fixes, refactors and audits of exist
 
 ## Messaging (RabbitMQ) / NoSQL read-model (MongoDB)
 
-- [ ] A new consumer purpose gets its own exchange/queue/DLQ - never a second routing key on an exchange already tied to a different flow.
+- [ ] A new consumer *purpose* gets its own exchange/queue/DLQ - never a second routing key on an exchange already tied to a different flow (e.g. notification vs projection). Multiple *event types serving the same purpose* (e.g. upsert vs delete on the same read-model) share the exchange, each with its own routing key/queue/DLQ - splitting those into separate exchanges is over-engineering, not the isolation this rule protects.
 - [ ] Manual `MessageListener` (not `@RabbitListener`) when the consumer needs to classify the raw payload before any automatic conversion could throw first; documented in Javadoc which style was chosen and why.
 - [ ] `@TransactionalEventListener` is never combined with plain `@Transactional` - only `REQUIRES_NEW`/`NOT_SUPPORTED`.
 - [ ] Multiple beans of the same type (e.g. a second `ObjectMapper`) get explicit `@Qualifier`; if the class uses `@RequiredArgsConstructor`, verify the qualifier actually reached the generated constructor - it may not, requiring an explicit constructor instead.
