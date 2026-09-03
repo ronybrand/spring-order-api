@@ -46,6 +46,14 @@ This applies to new features as well as bug fixes, refactors and audits of exist
 - [ ] Every service class using `@NotNull`/`@Positive`/etc. on a method parameter has `@Validated` on the class — without it the annotation is decorative and never triggers `ConstraintViolationException`.
 - [ ] Search, filtering and pagination reuse the project's shared infrastructure; field/type validation is resolved from the JPA metamodel, avoiding manual per-domain metadata duplication.
 
+## Messaging (RabbitMQ) / NoSQL read-model (MongoDB)
+
+- [ ] A new consumer purpose gets its own exchange/queue/DLQ - never a second routing key on an exchange already tied to a different flow.
+- [ ] Manual `MessageListener` (not `@RabbitListener`) when the consumer needs to classify the raw payload before any automatic conversion could throw first; documented in Javadoc which style was chosen and why.
+- [ ] `@TransactionalEventListener` is never combined with plain `@Transactional` - only `REQUIRES_NEW`/`NOT_SUPPORTED`.
+- [ ] Multiple beans of the same type (e.g. a second `ObjectMapper`) get explicit `@Qualifier`; if the class uses `@RequiredArgsConstructor`, verify the qualifier actually reached the generated constructor - it may not, requiring an explicit constructor instead.
+- [ ] Adding a new persistence starter (Mongo, Redis, etc.): the shared Testcontainers instance goes on the existing authenticated integration test base class, not a parallel one - every full-context `@SpringBootTest` needs it once it's on the classpath, not just the tests that use it.
+
 ## Security baseline (don't disable by accident)
 
 - [ ] Security headers, rate limiting, request size limit, JWT `aud` validation and fail-fast CORS in production remain active; none of these protections were disabled or bypassed to make an implementation or test easier.
@@ -73,3 +81,14 @@ Maven distribution) and restricted `System::load` (Jansi bundled inside the Mave
 JNA via Testcontainers) warnings show up on every CI run. Not fixable from this repo's config as
 of 2026-08 - re-verify next time one of these gets bumped, since a newer release may adopt the
 JDK's FFM/VarHandle APIs and drop the warning.
+
+## Surefire heap sizing (recheck whenever a new dependency joins the test classpath)
+
+The forked test JVM's `-Xmx` (`maven-surefire-plugin`/`maven-failsafe-plugin` `argLine` in
+`pom.xml`) is tight by design, not generous - a new heavy dependency on the test classpath (a
+new driver, a new Testcontainers module) can push a classpath-scanning library (e.g. Pact JVM's
+provider verification) into an `OutOfMemoryError` that surfaces as an unrelated, generic failure
+message, not an explicit OOM stack trace. If an existing, previously-green test starts failing
+right after a new dependency is added and the failure message doesn't clearly point to the new
+code, rule out heap pressure before assuming a logic bug - confirmed real on this project (Mongo
+driver added, an existing Pact provider test broke with "Uncaught exception during scan").
