@@ -3,6 +3,7 @@ package br.com.ronybrand.orderapi.order.readmodel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,6 +54,23 @@ class OrderProjectionServiceTest {
         when(orderViewRepository.save(any(OrderView.class))).thenThrow(new DataAccessResourceFailureException("down"));
 
         assertThatThrownBy(() -> service.upsert(message)).isInstanceOf(OrderProjectionWriteException.class);
+    }
+
+    @Test
+    void deleteById_ShouldDeleteFromRepository_WhenSucceeds() {
+        final UUID orderId = UUID.randomUUID();
+
+        service.deleteById(orderId);
+
+        verify(orderViewRepository).deleteById(orderId.toString());
+    }
+
+    @Test
+    void deleteById_ShouldThrowOrderProjectionWriteException_WhenRepositoryFails() {
+        final UUID orderId = UUID.randomUUID();
+        doThrow(new DataAccessResourceFailureException("down")).when(orderViewRepository).deleteById(orderId.toString());
+
+        assertThatThrownBy(() -> service.deleteById(orderId)).isInstanceOf(OrderProjectionWriteException.class);
     }
 
     @Test
