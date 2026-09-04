@@ -127,10 +127,11 @@ this:
 
 The integration test profile starts a real RabbitMQ container (and Redis container) so the
 application context and infrastructure health are exercised against the actual dependencies.
-Listener classification, retry counts and DLQ rejection are covered by focused listener tests;
-the Pact tests validate message shape without a broker. A full end-to-end test that publishes a
-message through RabbitMQ and inspects the DLQ/Mailpit is intentionally not part of the current
-suite.
+`OrderNotificationRabbitMqIT` publishes a malformed notification through the real exchange and
+asserts that the consumer routes it to the real DLQ. Listener classification and retry counts
+remain covered by focused listener tests, while Pact tests validate message shape without a
+broker. A full end-to-end test for transient SMTP failure through RabbitMQ and Mailpit is still
+outside the current suite.
 
 ## 6. Domain errors (reference catalog)
 

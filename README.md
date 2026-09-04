@@ -194,6 +194,10 @@ tests. The notification pair is
 `OrderStatusMessagePactConsumerTest`/`OrderStatusMessagePactProviderTest`; the projection pair is
 `OrderProjectionMessagePactConsumerTest`/`OrderProjectionMessagePactProviderTest`. See [ADR 0005](./docs/adr/0005-message-pact-without-broker.md).
 
+`OrderNotificationRabbitMqIT` also publishes a malformed notification through the real RabbitMQ
+exchange and verifies delivery to the configured DLQ. Retry classification is covered separately
+by listener tests; the full transient SMTP-to-Mailpit path is not currently exercised end to end.
+
 `./mvnw verify` runs automatically in CI (GitHub Actions) on every push/PR to `main` - see
 `.github/workflows/ci.yml`. JaCoCo coverage gate: 80% line / 65% branch (excludes
 `commons/config` and the bootstrap class, which are framework wiring, not business logic).
