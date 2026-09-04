@@ -28,16 +28,42 @@ class MessagingMetricsTest {
     }
 
     @Test
-    void recordEventLost_ShouldIncrementCounter_TaggedBySource() {
-        metrics.recordEventLost("order-changed");
-
-        assertThat(registry.counter("messaging.event.lost", "source", "order-changed").count()).isEqualTo(1.0);
-    }
-
-    @Test
     void recordIdempotencySkip_ShouldIncrementCounter_TaggedByListener() {
         metrics.recordIdempotencySkip("notification");
 
         assertThat(registry.counter("messaging.idempotency.skip", "listener", "notification").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void recordOutboxPublished_ShouldIncrementCounter_TaggedByEventType() {
+        metrics.recordOutboxPublished("OrderChangedEvent");
+        metrics.recordOutboxPublished("OrderChangedEvent");
+
+        assertThat(registry.counter("outbox.published", "eventType", "OrderChangedEvent").count()).isEqualTo(2.0);
+    }
+
+    @Test
+    void recordOutboxPublishFailure_ShouldIncrementCounter_TaggedByEventType() {
+        metrics.recordOutboxPublishFailure("OrderDeletedEvent");
+
+        assertThat(registry.counter("outbox.publish.failure", "eventType", "OrderDeletedEvent").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void recordOutboxPermanentlyFailed_ShouldIncrementCounter_TaggedByEventType() {
+        metrics.recordOutboxPermanentlyFailed("OrderStatusChangedEvent");
+
+        assertThat(registry.counter("outbox.failed.permanently", "eventType", "OrderStatusChangedEvent").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void registerOutboxBacklogGauge_ShouldReflectSupplierValue() {
+        final int[] backlog = {3};
+
+        metrics.registerOutboxBacklogGauge(() -> backlog[0]);
+
+        assertThat(registry.get("outbox.backlog").gauge().value()).isEqualTo(3.0);
+        backlog[0] = 7;
+        assertThat(registry.get("outbox.backlog").gauge().value()).isEqualTo(7.0);
     }
 }
