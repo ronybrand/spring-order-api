@@ -4,9 +4,8 @@ import java.util.UUID;
 
 /**
  * Published at the end of {@link OrderService#delete} - the counterpart to {@link OrderChangedEvent}
- * for the one mutation that {@code @SQLRestriction} on {@link Order} hides from every other query,
- * including {@link OrderRepository#findByIdWithItems}, so this can't be folded into
- * {@link OrderChangedEvent} and re-fetched the same way.
+ * for the one mutation that has no snapshot to carry: the order is gone, not changed, so the id
+ * alone is the whole message, unlike {@link OrderChangedEvent#from}.
  */
 public record OrderDeletedEvent(UUID orderId) {
 }

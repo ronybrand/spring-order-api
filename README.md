@@ -64,18 +64,17 @@ flowchart LR
 
 A second, purely technical event - `OrderChangedEvent`, unconditional, unlike the business-gated
 `OrderStatusChangedEvent` above - fires from every mutating `OrderService` method except `delete`
-(create, item changes, confirm, cancel). `OrderChangedEventListener` re-fetches the order
-(fetch-joined, since the original request's transaction has already committed by then) and
-publishes a full snapshot onto its own RabbitMQ exchange/queue, isolated from the notification
-topology. `OrderProjectionRabbitListener` upserts that snapshot into MongoDB as an `OrderView`
-document - denormalized, `@Version`-free (last-write-wins is an accepted trade-off for a
-disposable projection), served back through `GET /orders/{id}/view`. Eventually consistent: a
-`404` right after a write can mean the projection just hasn't caught up yet, not that the order
-doesn't exist.
+(create, item changes, confirm, cancel), carrying a full snapshot of the order (built from the
+same managed entity `OrderService` just saved, inside the original transaction - no re-fetch).
+`OrderChangedEventListener` just forwards that snapshot onto its own RabbitMQ exchange/queue,
+isolated from the notification topology. `OrderProjectionRabbitListener` upserts it into MongoDB
+as an `OrderView` document - denormalized, `@Version`-free (last-write-wins is an accepted
+trade-off for a disposable projection), served back through `GET /orders/{id}/view`. Eventually
+consistent: a `404` right after a write can mean the projection just hasn't caught up yet, not
+that the order doesn't exist.
 
-`delete` has its own counterpart, `OrderDeletedEvent`: the order is already soft-deleted and
-hidden from every query by `@SQLRestriction` by the time the listener runs, so there's no
-snapshot to re-fetch - `OrderDeletedEventListener` publishes just the id onto a dedicated
+`delete` has its own counterpart, `OrderDeletedEvent`: the order is gone, not changed, so there's
+no snapshot to carry - `OrderDeletedEventListener` publishes just the id onto a dedicated
 routing key on the same exchange, and `OrderDeletionRabbitListener` deletes the `OrderView`
 document outright, same retry/DLQ contract as the upsert path.
 

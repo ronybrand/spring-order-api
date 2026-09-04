@@ -75,7 +75,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
-        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
+        publishOrderChanged(saved);
         log.info("Order created: id={}", saved.getId());
         return OrderResponseDto.from(saved);
     }
@@ -110,7 +110,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
-        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
+        publishOrderChanged(saved);
         log.info("Item added to order: orderId={}", orderId);
         return OrderResponseDto.from(saved);
     }
@@ -125,7 +125,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
-        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
+        publishOrderChanged(saved);
         log.info("Item quantity updated: orderId={}, itemId={}", orderId, itemId);
         return OrderResponseDto.from(saved);
     }
@@ -140,7 +140,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.calculateTotal();
 
         final Order saved = orderRepository.save(order);
-        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
+        publishOrderChanged(saved);
         log.info("Item removed from order: orderId={}, itemId={}", orderId, itemId);
         return OrderResponseDto.from(saved);
     }
@@ -162,7 +162,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.setStatus(OrderStatus.CONFIRMED);
         final Order saved = orderRepository.save(order);
         publishStatusChangedEvent(saved, previousStatus, OrderStatus.CONFIRMED);
-        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
+        publishOrderChanged(saved);
         log.info("Order confirmed: id={}", id);
         return OrderResponseDto.from(saved);
     }
@@ -184,7 +184,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.setStatus(OrderStatus.CANCELED);
         final Order saved = orderRepository.save(order);
         publishStatusChangedEvent(saved, previousStatus, OrderStatus.CANCELED);
-        eventPublisher.publishEvent(new OrderChangedEvent(saved.getId()));
+        publishOrderChanged(saved);
         log.info("Order canceled: id={}", id);
         return OrderResponseDto.from(saved);
     }
@@ -195,6 +195,17 @@ public class OrderService implements SearchService<OrderResponseDto> {
         final Sort sort = SearchUtils.buildSort(order, entityManager.getMetamodel(), Order.class);
         final Pageable pageable = SearchUtils.buildPageable(page, size, paginationProperties.maxSize(), sort);
         return orderRepository.findAll(OrderSpecification.byCriteria(filters), pageable).map(OrderResponseDto::from);
+    }
+
+    /**
+     * Flushes before building the snapshot so {@code updatedAt} ({@code @LastModifiedDate}, only
+     * populated by Hibernate's auditing listener when the pending UPDATE actually executes) is
+     * guaranteed accurate - without this, {@link OrderChangedEvent#from} could capture a stale
+     * value if Hibernate hadn't flushed the change to {@code order} yet.
+     */
+    private void publishOrderChanged(final Order order) {
+        entityManager.flush();
+        eventPublisher.publishEvent(OrderChangedEvent.from(order));
     }
 
     private void publishStatusChangedEvent(final Order order, final OrderStatus oldStatus, final OrderStatus newStatus) {
