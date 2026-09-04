@@ -16,7 +16,9 @@ import au.com.dius.pact.core.model.PactSpecVersion;
 import au.com.dius.pact.core.model.annotations.Pact;
 import au.com.dius.pact.core.model.messaging.Message;
 import au.com.dius.pact.core.model.messaging.MessagePact;
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -63,7 +65,7 @@ class OrderStatusMessagePactConsumerTest {
                 mock(StringRedisTemplate.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
         when(stringRedisTemplate.opsForValue().setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
         final OrderNotificationRabbitListener listener =
-                new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate);
+                new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate, new MessagingMetrics(new SimpleMeterRegistry()));
 
         final byte[] body = messages.get(0).contentsAsBytes();
         listener.onMessage(new org.springframework.amqp.core.Message(body, new MessageProperties()));

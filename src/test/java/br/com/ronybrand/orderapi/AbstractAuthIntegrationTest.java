@@ -7,6 +7,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -36,9 +38,25 @@ public abstract class AbstractAuthIntegrationTest {
     protected static final MongoDBContainer MONGO_CONTAINER =
             new MongoDBContainer(DockerImageName.parse("mongo:7"));
 
+    @ServiceConnection
+    protected static final RabbitMQContainer RABBITMQ_CONTAINER =
+            new RabbitMQContainer(DockerImageName.parse("rabbitmq:3.13-management-alpine"));
+
+    /**
+     * No dedicated Testcontainers Redis module exists (see the {@code testcontainers:rabbitmq}
+     * comment in pom.xml for the equivalent Redis note) - {@code @ServiceConnection("redis")} on a
+     * plain {@link GenericContainer} is what Spring Boot's connection-details factory keys off of
+     * for Redis specifically, same effect as a dedicated container type.
+     */
+    @ServiceConnection("redis")
+    protected static final GenericContainer<?> REDIS_CONTAINER =
+            new GenericContainer<>(DockerImageName.parse("redis:7-alpine")).withExposedPorts(6379);
+
     static {
         POSTGRES_CONTAINER.start();
         MONGO_CONTAINER.start();
+        RABBITMQ_CONTAINER.start();
+        REDIS_CONTAINER.start();
     }
 
     @Autowired

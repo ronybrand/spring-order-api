@@ -147,6 +147,18 @@ above):
 - **Swagger UI:** `http://localhost:8080/api/swagger-ui.html`
 - **OpenAPI JSON:** `http://localhost:8080/api/v3/api-docs`
 
+### Observability
+
+The Actuator surface is intentionally limited to two endpoints:
+
+- `GET /actuator/health` is public for container liveness/readiness probes. Anonymous callers
+  receive only aggregate `UP`/`DOWN`; authenticated callers can see component details.
+- `GET /actuator/prometheus` requires authentication and exposes Prometheus-formatted metrics.
+
+Messaging counters include retries, DLQ rejections, permanently lost event publishes and
+idempotency skips. They are tagged by listener or event source and use the `messaging.*` metric
+names documented in `MessagingMetrics`.
+
 ## Configuration &amp; deployment notes
 
 Everything under `spring:` in `application.yml` is sourced from environment variables with
@@ -173,7 +185,7 @@ See [SECURITY.md](./SECURITY.md) for the vulnerability-reporting policy.
 
 ```bash
 ./mvnw test      # unit (*Test, no Docker)
-./mvnw verify    # unit + integration (*IT, real Postgres via Testcontainers) + PMD + JaCoCo
+./mvnw verify    # unit + integration (*IT, real Postgres/Mongo/RabbitMQ/Redis via Testcontainers) + PMD + JaCoCo
 ```
 
 `./mvnw test` runs the Pact JVM consumer tests and writes the local contracts to `target/pacts/`.
@@ -181,6 +193,10 @@ See [SECURITY.md](./SECURITY.md) for the vulnerability-reporting policy.
 tests. The notification pair is
 `OrderStatusMessagePactConsumerTest`/`OrderStatusMessagePactProviderTest`; the projection pair is
 `OrderProjectionMessagePactConsumerTest`/`OrderProjectionMessagePactProviderTest`. See [ADR 0005](./docs/adr/0005-message-pact-without-broker.md).
+
+`OrderNotificationRabbitMqIT` also publishes a malformed notification through the real RabbitMQ
+exchange and verifies delivery to the configured DLQ. Retry classification is covered separately
+by listener tests; the full transient SMTP-to-Mailpit path is not currently exercised end to end.
 
 `./mvnw verify` runs automatically in CI (GitHub Actions) on every push/PR to `main` - see
 `.github/workflows/ci.yml`. JaCoCo coverage gate: 80% line / 65% branch (excludes

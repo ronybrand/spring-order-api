@@ -51,7 +51,14 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth
+                        // Container liveness/readiness probes can't present a Bearer token; only
+                        // aggregate UP/DOWN is exposed anonymously (component-level detail
+                        // requires auth - see application.yml's show-details/show-components).
+                        // /actuator/prometheus is NOT listed here - it stays behind the
+                        // anyRequest() rule below, authenticated like everything else.
+                        .requestMatchers("/actuator/health/**").permitAll()
+                        .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .headers(this::configureHeaders);
         return http.build();

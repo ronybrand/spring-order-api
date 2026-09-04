@@ -8,9 +8,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.order.OrderStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -25,7 +27,8 @@ class OrderProjectionRabbitListenerTest {
 
     private final OrderProjectionService orderProjectionService = mock(OrderProjectionService.class);
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-    private final OrderProjectionRabbitListener listener = new OrderProjectionRabbitListener(orderProjectionService, objectMapper);
+        private final OrderProjectionRabbitListener listener = new OrderProjectionRabbitListener(orderProjectionService, objectMapper,
+            new MessagingMetrics(new SimpleMeterRegistry()));
 
     private static Message rawMessage(final byte[] body) {
         return new Message(body, new MessageProperties());

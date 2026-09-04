@@ -75,3 +75,24 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+management:
+  endpoints:
+    web:
+      # Only these two, never the full actuator surface (env, beans, heapdump, etc. leak far more
+      # than a health/metrics endpoint should) - see commons/config/SecurityConfig for which of the
+      # two is public (health, for container liveness/readiness probes) vs authenticated
+      # (prometheus, since scraping exposes operational detail: queue/retry/idempotency counters).
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      # Component-level detail (which dependency is down, not just overall UP/DOWN) only for an
+      # authenticated caller - never anonymously, even though the endpoint itself is public.
+      show-details: when-authorized
+      show-components: when-authorized
+  health:
+    mail:
+      # SMTP is dev-only infrastructure (Mailpit) - a real deployment's mail relay being briefly
+      # unreachable shouldn't flip /actuator/health to DOWN for the whole app.
+      enabled: false

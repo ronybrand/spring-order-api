@@ -7,6 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import br.com.ronybrand.orderapi.order.OrderDeletedEvent;
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -14,7 +16,8 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 class OrderDeletedEventListenerTest {
 
     private final RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
-    private final OrderDeletedEventListener listener = new OrderDeletedEventListener(rabbitTemplate);
+        private final OrderDeletedEventListener listener =
+            new OrderDeletedEventListener(rabbitTemplate, new MessagingMetrics(new SimpleMeterRegistry()));
 
     @Test
     void onOrderDeleted_ShouldPublishDeletionMessage() {

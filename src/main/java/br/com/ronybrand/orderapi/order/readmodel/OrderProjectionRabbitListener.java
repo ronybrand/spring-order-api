@@ -1,6 +1,7 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
 import br.com.ronybrand.orderapi.commons.messaging.MessageParsing;
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.commons.messaging.RetryLoop;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -24,13 +25,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class OrderProjectionRabbitListener implements MessageListener {
 
+    private static final String LISTENER_NAME = "projection";
+
     private final OrderProjectionService orderProjectionService;
     private final ObjectMapper objectMapper;
+    private final MessagingMetrics messagingMetrics;
 
     public OrderProjectionRabbitListener(final OrderProjectionService orderProjectionService,
-            @Qualifier("orderProjectionObjectMapper") final ObjectMapper objectMapper) {
+            @Qualifier("orderProjectionObjectMapper") final ObjectMapper objectMapper, final MessagingMetrics messagingMetrics) {
         this.orderProjectionService = orderProjectionService;
         this.objectMapper = objectMapper;
+        this.messagingMetrics = messagingMetrics;
     }
 
     @Override
@@ -40,6 +45,7 @@ public class OrderProjectionRabbitListener implements MessageListener {
             projectionMessage = parse(message);
         } catch (final MalformedOrderProjectionMessageException e) {
             log.warn("{} - sending straight to DLQ", e.getMessage());
+            messagingMetrics.recordDlq(LISTENER_NAME);
             throw new AmqpRejectAndDontRequeueException(e.getMessage(), e);
         }
         upsertWithRetry(projectionMessage);
@@ -65,10 +71,15 @@ public class OrderProjectionRabbitListener implements MessageListener {
         RetryLoop.run(OrderProjectionWriteException.class, OrderProjectionRetryPolicy.MAX_RETRIES,
                 OrderProjectionRetryPolicy.INITIAL_BACKOFF, OrderProjectionRetryPolicy.BACKOFF_MULTIPLIER,
                 () -> orderProjectionService.upsert(message),
-                (attempt, maxAttempts, backoffMs, e) -> log.warn(
-                        "Transient failure upserting order view (attempt {}/{}), retrying in {}ms: orderId={}",
-                        attempt, maxAttempts, backoffMs, message.orderId(), e),
-                (attempts, e) -> log.error("Failed to upsert order view after {} attempts, sending to DLQ: orderId={}",
-                        attempts, message.orderId(), e));
+                (attempt, maxAttempts, backoffMs, e) -> {
+                    log.warn("Transient failure upserting order view (attempt {}/{}), retrying in {}ms: orderId={}",
+                            attempt, maxAttempts, backoffMs, message.orderId(), e);
+                    messagingMetrics.recordRetry(LISTENER_NAME);
+                },
+                (attempts, e) -> {
+                    log.error("Failed to upsert order view after {} attempts, sending to DLQ: orderId={}",
+                            attempts, message.orderId(), e);
+                    messagingMetrics.recordDlq(LISTENER_NAME);
+                });
     }
 }

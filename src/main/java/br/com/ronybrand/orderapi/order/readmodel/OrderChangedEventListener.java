@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.order.OrderChangedEvent;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class OrderChangedEventListener {
 
     private final RabbitTemplate rabbitTemplate;
+    private final MessagingMetrics messagingMetrics;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderChanged(final OrderChangedEvent event) {
@@ -32,6 +34,7 @@ public class OrderChangedEventListener {
         } catch (final RuntimeException e) {
             log.error("Order projection update permanently lost, publish failed and this event is never retried: orderId={}",
                     event.orderId(), e);
+            messagingMetrics.recordEventLost("order-changed");
         }
     }
 

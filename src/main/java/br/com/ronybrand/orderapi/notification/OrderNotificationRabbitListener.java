@@ -1,6 +1,7 @@
 package br.com.ronybrand.orderapi.notification;
 
 import br.com.ronybrand.orderapi.commons.messaging.MessageParsing;
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.commons.messaging.RetryLoop;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,17 +39,20 @@ import org.springframework.stereotype.Component;
 public class OrderNotificationRabbitListener implements MessageListener {
 
     private static final Duration IDEMPOTENCY_KEY_TTL = Duration.ofHours(24);
+    private static final String LISTENER_NAME = "notification";
 
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate stringRedisTemplate;
+    private final MessagingMetrics messagingMetrics;
 
     public OrderNotificationRabbitListener(final EmailService emailService,
             @Qualifier("orderStatusObjectMapper") final ObjectMapper objectMapper,
-            final StringRedisTemplate stringRedisTemplate) {
+            final StringRedisTemplate stringRedisTemplate, final MessagingMetrics messagingMetrics) {
         this.emailService = emailService;
         this.objectMapper = objectMapper;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.messagingMetrics = messagingMetrics;
     }
 
     @Override
@@ -58,6 +62,7 @@ public class OrderNotificationRabbitListener implements MessageListener {
             event = parse(message);
         } catch (final MalformedOrderStatusMessageException e) {
             log.warn("{} - sending straight to DLQ", e.getMessage());
+            messagingMetrics.recordDlq(LISTENER_NAME);
             throw new AmqpRejectAndDontRequeueException(e.getMessage(), e);
         }
 
@@ -66,6 +71,7 @@ public class OrderNotificationRabbitListener implements MessageListener {
                 stringRedisTemplate.opsForValue().setIfAbsent(idempotencyKey, "1", IDEMPOTENCY_KEY_TTL));
         if (!claimed) {
             log.info("Notification already sent or in flight, skipping: orderId={}", event.orderId());
+            messagingMetrics.recordIdempotencySkip(LISTENER_NAME);
             return;
         }
         try {
@@ -101,10 +107,15 @@ public class OrderNotificationRabbitListener implements MessageListener {
         RetryLoop.run(EmailSendingException.class, NotificationRetryPolicy.MAX_RETRIES,
                 NotificationRetryPolicy.INITIAL_BACKOFF, NotificationRetryPolicy.BACKOFF_MULTIPLIER,
                 () -> emailService.sendOrderStatusEmail(event),
-                (attempt, maxAttempts, backoffMs, e) -> log.warn(
-                        "Transient failure sending notification (attempt {}/{}), retrying in {}ms: orderId={}",
-                        attempt, maxAttempts, backoffMs, event.orderId(), e),
-                (attempts, e) -> log.error("Failed to send notification after {} attempts, sending to DLQ: orderId={}",
-                        attempts, event.orderId(), e));
+                (attempt, maxAttempts, backoffMs, e) -> {
+                    log.warn("Transient failure sending notification (attempt {}/{}), retrying in {}ms: orderId={}",
+                            attempt, maxAttempts, backoffMs, event.orderId(), e);
+                    messagingMetrics.recordRetry(LISTENER_NAME);
+                },
+                (attempts, e) -> {
+                    log.error("Failed to send notification after {} attempts, sending to DLQ: orderId={}",
+                            attempts, event.orderId(), e);
+                    messagingMetrics.recordDlq(LISTENER_NAME);
+                });
     }
 }
