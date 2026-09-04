@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.notification;
 
+import br.com.ronybrand.orderapi.commons.config.RawJsonObjectMapperFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
@@ -73,11 +74,14 @@ public class RabbitMQConfig {
     /**
      * A dedicated, explicit {@code ObjectMapper} for {@link OrderNotificationRabbitListener} to
      * parse the raw message body itself - Spring Boot does not otherwise expose a classic Jackson
-     * 2 {@code ObjectMapper} bean here.
+     * 2 {@code ObjectMapper} bean here. Its own {@code @Bean} instance, not shared with
+     * {@code order.readmodel.OrderProjectionConfig}'s equivalent, so this config has no unrelated
+     * reason to change when the read-model's does; {@link RawJsonObjectMapperFactory} centralizes
+     * just the construction logic both share.
      */
     @Bean
     ObjectMapper orderStatusObjectMapper() {
-        return new ObjectMapper().findAndRegisterModules();
+        return RawJsonObjectMapperFactory.create();
     }
 
     @Bean

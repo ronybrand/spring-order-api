@@ -1,11 +1,13 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
+import br.com.ronybrand.orderapi.commons.config.RawJsonObjectMapperFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.MongoClientSettings;
 import org.bson.UuidRepresentation;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.MessageListener;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -44,10 +46,7 @@ public class OrderProjectionConfig {
 
     @Bean
     Queue orderProjectionQueue() {
-        return QueueBuilder.durable(QUEUE)
-                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
-                .withArgument("x-dead-letter-routing-key", ROUTING_KEY)
-                .build();
+        return buildQueue(QUEUE, ROUTING_KEY);
     }
 
     @Bean
@@ -67,10 +66,7 @@ public class OrderProjectionConfig {
 
     @Bean
     Queue orderProjectionDeleteQueue() {
-        return QueueBuilder.durable(DELETE_QUEUE)
-                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
-                .withArgument("x-dead-letter-routing-key", DELETE_ROUTING_KEY)
-                .build();
+        return buildQueue(DELETE_QUEUE, DELETE_ROUTING_KEY);
     }
 
     @Bean
@@ -89,6 +85,18 @@ public class OrderProjectionConfig {
     }
 
     /**
+     * Shared by {@link #orderProjectionQueue()} and {@link #orderProjectionDeleteQueue()} - both
+     * point their dead letters at the same {@link #DEAD_LETTER_EXCHANGE}, keyed by their own
+     * routing key so upsert and delete failures land in separate, independently inspectable DLQs.
+     */
+    private Queue buildQueue(final String name, final String routingKey) {
+        return QueueBuilder.durable(name)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", routingKey)
+                .build();
+    }
+
+    /**
      * The MongoDB Java driver refuses to encode {@code UUID} fields (like {@link OrderView#getId()}
      * and {@link OrderView#getCustomerId()}) unless a representation is chosen explicitly - there's
      * no safe default across legacy/standard encodings. {@code spring.data.mongodb.uuid-representation}
@@ -104,33 +112,37 @@ public class OrderProjectionConfig {
 
     /**
      * A dedicated, explicit {@code ObjectMapper} for {@link OrderProjectionRabbitListener} to parse
-     * the raw message body itself - deliberately duplicated from
-     * {@code notification.RabbitMQConfig#orderStatusObjectMapper} rather than reused/renamed,
-     * to honor keeping that class untouched (its exchange is semantically coupled to the email
-     * flow and shouldn't gain a second, unrelated reason to change).
+     * the raw message body itself - its own {@code @Bean} instance, not shared with
+     * {@code notification.RabbitMQConfig}'s equivalent, so that class has no unrelated reason to
+     * change when this one does; {@link RawJsonObjectMapperFactory} centralizes just the
+     * construction logic both share.
      */
     @Bean
     ObjectMapper orderProjectionObjectMapper() {
-        return new ObjectMapper().findAndRegisterModules();
+        return RawJsonObjectMapperFactory.create();
     }
 
     @Bean
     SimpleMessageListenerContainer orderProjectionContainer(final ConnectionFactory connectionFactory,
             final OrderProjectionRabbitListener listener) {
-        final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
-        container.setQueueNames(QUEUE);
-        container.setMessageListener(listener);
-        // Same safety net as notification.RabbitMQConfig#orderNotificationContainer: any exception
-        // escaping the listener's own classification must still go to the DLQ, not requeue forever.
-        container.setDefaultRequeueRejected(false);
-        return container;
+        return buildContainer(connectionFactory, QUEUE, listener);
     }
 
     @Bean
     SimpleMessageListenerContainer orderProjectionDeleteContainer(final ConnectionFactory connectionFactory,
             final OrderDeletionRabbitListener listener) {
+        return buildContainer(connectionFactory, DELETE_QUEUE, listener);
+    }
+
+    /**
+     * Shared by {@link #orderProjectionContainer} and {@link #orderProjectionDeleteContainer} - any
+     * exception escaping a listener's own classification must still go to that queue's DLQ, not
+     * requeue forever, same safety net as {@code notification.RabbitMQConfig#orderNotificationContainer}.
+     */
+    private SimpleMessageListenerContainer buildContainer(final ConnectionFactory connectionFactory,
+            final String queueName, final MessageListener listener) {
         final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
-        container.setQueueNames(DELETE_QUEUE);
+        container.setQueueNames(queueName);
         container.setMessageListener(listener);
         container.setDefaultRequeueRejected(false);
         return container;
