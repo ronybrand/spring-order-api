@@ -53,6 +53,7 @@ This applies to new features as well as bug fixes, refactors and audits of exist
 - [ ] `@TransactionalEventListener` is never combined with plain `@Transactional` - only `REQUIRES_NEW`/`NOT_SUPPORTED`.
 - [ ] Multiple beans of the same type (e.g. a second `ObjectMapper`) get explicit `@Qualifier`; if the class uses `@RequiredArgsConstructor`, verify the qualifier actually reached the generated constructor - it may not, requiring an explicit constructor instead.
 - [ ] Adding a new persistence starter (Mongo, Redis, etc.): the shared Testcontainers instance goes on the existing authenticated integration test base class, not a parallel one - every full-context `@SpringBootTest` needs it once it's on the classpath, not just the tests that use it.
+- [ ] A message shape shared between a producer and a consumer that could drift silently (renamed field, changed date format) is worth a consumer-driven contract test (Pact JVM message pact) when it makes sense, not an implicit convention only - see `OrderStatusMessagePactConsumerTest`/`OrderStatusMessagePactProviderTest` and [ADR 0005](./docs/adr/0005-message-pact-without-broker.md) for the pattern and when a Pact Broker would actually be warranted (a second, independently-deployed consumer - not the case today).
 
 ## Security baseline (don't disable by accident)
 

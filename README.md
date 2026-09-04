@@ -127,6 +127,10 @@ automatically yet. To test manually against the real server (the automated `*Con
 ./mvnw verify    # unit + integration (*IT, real Postgres via Testcontainers) + PMD + JaCoCo
 ```
 
+`./mvnw test` also runs the Pact JVM consumer/provider pair
+(`OrderStatusMessagePactConsumerTest`/`OrderStatusMessagePactProviderTest`) that contract-tests the
+notification queue message - see [ADR 0005](./docs/adr/0005-message-pact-without-broker.md).
+
 `./mvnw verify` runs automatically in CI (GitHub Actions) on every push/PR to `main` - see
 `.github/workflows/ci.yml`. JaCoCo coverage gate: 80% line / 65% branch (excludes
 `commons/config` and the bootstrap class, which are framework wiring, not business logic).
