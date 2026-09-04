@@ -18,23 +18,27 @@ flowchart LR
     Client -->|HTTPS| RequestId[RequestIdFilter] --> MaxSize[MaxRequestSizeFilter] --> RateLimit[RateLimitFilter] --> JWT["JWT<br/>(resource-server auth)"] --> Controller[OrderController] --> OrderService --> Repository["OrderRepository<br/>(Spring Data JPA / Hibernate)"] --> DB[(PostgreSQL)]
 ```
 
-OrderService publishes a `StatusChanged` event ⤵
+On `confirm`/`cancel`, `OrderService` also writes an `OrderStatusChangedEvent` row to the
+transactional outbox, in the same database transaction as the status change ⤵
 
-**Notification (asynchronous)**
+**Notification (asynchronous, via transactional outbox)**
 
 ```mermaid
 flowchart LR
-    Event[StatusChanged event] --> Listener[OrderStatusEventListener] -->|publish| Queue[[order.status.notifications.queue]] -->|consume| Consumer[OrderNotificationRabbitListener] --> Email[EmailService] --> Customer([Customer inbox])
+    OrderService -->|enqueue, same tx| Outbox[(outbox_events)] --> Publisher[OutboxPublisher] -->|publish| Queue[[order.status.notifications.queue]] -->|consume| Consumer[OrderNotificationRabbitListener] --> Email[EmailService] --> Customer([Customer inbox])
     Consumer -.->|retry / DLQ| Queue
+    Publisher -.->|retry with backoff| Outbox
 ```
 
 Creating or updating an order runs synchronously through `RequestIdFilter`, `MaxRequestSizeFilter`
 and `RateLimitFilter` (in that `@Order` precedence), then Spring Security's JWT resource-server
 filter, into the controller, `OrderService`, and the repository/database - the controller returns
 the response once `OrderService` finishes (`201` for create, `200` for update). A status change
-from `confirm` or `cancel` (not every update) also fires an in-process event; a listener
-re-publishes it onto a RabbitMQ queue, drained by a separate consumer (with its own retry) that
-sends the email. The two paths never block each other.
+from `confirm` or `cancel` (not every update) also writes an outbox row in that same transaction;
+a separate `OutboxPublisher` polls the table (`SELECT ... FOR UPDATE SKIP LOCKED`), publishes to
+RabbitMQ, and only marks the row published once the broker confirms the send - see
+[ADR 0006](./docs/adr/0006-transactional-outbox.md) for why this replaced publishing from a plain
+Spring `ApplicationEventPublisher` event. The two paths never block each other.
 
 The messages in both RabbitMQ flows are covered by **consumer-driven contracts** (Pact JVM message
 pacts), not just assumptions shared by convention. `OrderStatusMessagePactConsumerTest` and
@@ -51,32 +55,36 @@ redelivery of an already-processed message would otherwise duplicate the email t
 (`notification:sent:{orderId}:{newStatus}`), written only *after* the send succeeds so a message
 that ends up retried/DLQ'd is never wrongly marked as already sent.
 
-**Order view (CQRS read-model, asynchronous)**
+**Order view (CQRS read-model, asynchronous, via transactional outbox)**
 
 ```mermaid
 flowchart LR
-    Changed[OrderChanged event] --> Bridge[OrderChangedEventListener] -->|publish| PQueue[[order.projection.queue]] -->|consume| PConsumer[OrderProjectionRabbitListener] --> Mongo[(MongoDB<br/>order_views)]
+    OrderService -->|enqueue OrderChangedEvent, same tx| Outbox[(outbox_events)]
+    OrderService -->|enqueue OrderDeletedEvent, same tx| Outbox
+    Outbox --> Publisher[OutboxPublisher]
+    Publisher -->|publish| PQueue[[order.projection.queue]] -->|consume| PConsumer[OrderProjectionRabbitListener] --> Mongo[(MongoDB<br/>order_views)]
     PConsumer -.->|retry / DLQ| PQueue
-    Deleted[OrderDeleted event] --> DelBridge[OrderDeletedEventListener] -->|publish| DQueue[[order.projection.delete.queue]] -->|consume| DConsumer[OrderDeletionRabbitListener] --> Mongo
+    Publisher -->|publish| DQueue[[order.projection.delete.queue]] -->|consume| DConsumer[OrderDeletionRabbitListener] --> Mongo
     DConsumer -.->|retry / DLQ| DQueue
     Mongo --> ViewController[OrderViewController] -->|GET /orders/id/view| ViewClient[Client]
 ```
 
-A second, purely technical event - `OrderChangedEvent`, unconditional, unlike the business-gated
-`OrderStatusChangedEvent` above - fires from every mutating `OrderService` method except `delete`
-(create, item changes, confirm, cancel), carrying a full snapshot of the order (built from the
-same managed entity `OrderService` just saved, inside the original transaction - no re-fetch).
-`OrderChangedEventListener` just forwards that snapshot onto its own RabbitMQ exchange/queue,
-isolated from the notification topology. `OrderProjectionRabbitListener` upserts it into MongoDB
-as an `OrderView` document - denormalized, `@Version`-free (last-write-wins is an accepted
-trade-off for a disposable projection), served back through `GET /orders/{id}/view`. Eventually
-consistent: a `404` right after a write can mean the projection just hasn't caught up yet, not
-that the order doesn't exist.
+A second, purely technical outbox event - `OrderChangedEvent`, unconditional, unlike the
+business-gated `OrderStatusChangedEvent` above - is enqueued from every mutating `OrderService`
+method except `delete` (create, item changes, confirm, cancel), carrying a full snapshot of the
+order (built from the same managed entity `OrderService` just saved, inside the original
+transaction - no re-fetch, though it does force an early flush so `updatedAt` is accurate; see
+`OrderService.publishOrderChanged`). `OutboxPublisher` sends that snapshot onto its own RabbitMQ
+exchange/queue, isolated from the notification topology. `OrderProjectionRabbitListener` upserts it
+into MongoDB as an `OrderView` document - denormalized, `@Version`-free (last-write-wins is an
+accepted trade-off for a disposable projection), served back through `GET /orders/{id}/view`.
+Eventually consistent: a `404` right after a write can mean the projection just hasn't caught up
+yet, not that the order doesn't exist.
 
 `delete` has its own counterpart, `OrderDeletedEvent`: the order is gone, not changed, so there's
-no snapshot to carry - `OrderDeletedEventListener` publishes just the id onto a dedicated
-routing key on the same exchange, and `OrderDeletionRabbitListener` deletes the `OrderView`
-document outright, same retry/DLQ contract as the upsert path.
+no snapshot to carry - `OrderService.delete` enqueues just the id onto a dedicated routing key on
+the same exchange, and `OrderDeletionRabbitListener` deletes the `OrderView` document outright,
+same retry/DLQ contract as the upsert path.
 
 ## Stack
 

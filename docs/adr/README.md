@@ -8,3 +8,4 @@ alternatives discarded, and consequences (including the ones left deliberately u
 - [0003 — Static singleton Testcontainer instead of @Testcontainers/@Container](0003-static-singleton-testcontainer.md)
 - [0004 — Fail startup on an empty CORS allowed-origins list](0004-cors-fail-fast-on-empty-allowed-origins.md)
 - [0005 — Message pacts (Pact JVM) for RabbitMQ flows, no Pact Broker](0005-message-pact-without-broker.md)
+- [0006 — Transactional outbox instead of publishing from Spring application events](0006-transactional-outbox.md)
