@@ -125,10 +125,12 @@ this:
 3. **The DLQ is a real, inspectable queue** (e.g. RabbitMQ Management UI), not a log or silent drop — allows manual reprocessing after the root cause is fixed.
 4. **Classification is by failure type, not by message content**: the same "malformed payload" exception always skips retry; any other exception (a side effect of actually sending the email) always follows the bounded retry policy.
 
-Verified end-to-end against a real broker: a malformed message lands in the DLQ on the first
-attempt (no retry); a forced transient failure (SMTP unavailable) produces the configured number
-of attempts with the expected backoff before landing in the DLQ; the happy path delivers the
-email (Mailpit in dev).
+The integration test profile starts a real RabbitMQ container (and Redis container) so the
+application context and infrastructure health are exercised against the actual dependencies.
+Listener classification, retry counts and DLQ rejection are covered by focused listener tests;
+the Pact tests validate message shape without a broker. A full end-to-end test that publishes a
+message through RabbitMQ and inspects the DLQ/Mailpit is intentionally not part of the current
+suite.
 
 ## 6. Domain errors (reference catalog)
 
@@ -142,16 +144,17 @@ Categories and codes, mappable to exceptions/HTTP status in any stack:
 - `VALIDATION_ORDER_INVALID_STATUS_TRANSITION` — disallowed status transition.
 - `VALIDATION_INVALID_FILTER_VALUE` / `VALIDATION_INVALID_SORT_FIELD` — invalid search parameters.
 - `VALIDATION_CONSTRAINT_VIOLATION` — generic field validation violation.
+- `VALIDATION_CUSTOMER_HAS_ORDERS` — deleting a customer with associated orders.
 
 **Not found (404)**
 - `RESOURCE_NOT_FOUND_CUSTOMER`
 - `RESOURCE_NOT_FOUND_ORDER`
 - `RESOURCE_NOT_FOUND_ITEM`
+- `RESOURCE_NOT_FOUND_ORDER_VIEW` — no read-model projection exists yet, including eventual-consistency lag.
 
 **Conflict (409)**
 - `VALIDATION_CUSTOMER_TAXID_EXISTS` — duplicate taxId.
 - `VALIDATION_CUSTOMER_PASSPORT_EXISTS` — duplicate passportNumber.
-- `VALIDATION_CUSTOMER_HAS_ORDERS` — deleting a customer with associated orders.
 - `CONFLICT_CONCURRENT_MODIFICATION` — optimistic concurrency conflict.
 - `CONFLICT_DATA_INTEGRITY_VIOLATION` — storage integrity violation.
 
@@ -180,6 +183,12 @@ Categories and codes, mappable to exceptions/HTTP status in any stack:
 - `findById(id)`
 - `search(filters, sorting, pagination)`
 
+### Order read-model
+- `findView(orderId)` → reads the eventually consistent MongoDB projection; may return
+   `RESOURCE_NOT_FOUND_ORDER_VIEW` immediately after a write or for an unknown order.
+- Projection deletion writes a tombstone (`deletedAt`) instead of physically removing the MongoDB
+   document, preventing a delayed upsert from resurrecting a deleted view.
+
 ## 8. Reference endpoints (original implementation's HTTP contract)
 
 Reference only for the contract — replicating the same transport technology in future
@@ -198,6 +207,7 @@ implementations is not required.
 | DELETE | `/orders/{orderId}/items/{itemId}` | Remove item |
 | POST | `/orders/{id}/confirm` | Confirm order |
 | POST | `/orders/{id}/cancel` | Cancel order |
+| GET | `/orders/{id}/view` | Get the eventually consistent MongoDB read-model view |
 
 ### `/customers` (mutations require the admin role; reads require an authenticated user)
 
