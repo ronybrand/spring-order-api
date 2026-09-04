@@ -247,7 +247,7 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
 					<!-- -Djava.net.preferIPv4Stack=true avoids Testcontainers network instability on Docker Desktop/WSL2 on Windows.
-						 768m (not the 1536m failsafe below needs): Surefire only runs plain unit tests plus the
+						 768m: Surefire only runs plain unit tests plus the
 						 Pact JVM consumer/provider pairs - no Spring context, no Testcontainers - so it needs
 						 headroom over the original 512m for Pact's own JSON/matching machinery, not a full
 						 Testcontainers-sized heap. -->
