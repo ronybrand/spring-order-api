@@ -1,0 +1,9 @@
+target/
+.git/
+.idea/
+*.iml
+docs/
+README.md
+DOMAIN.md
+AGENTS.md
+SECURITY.md

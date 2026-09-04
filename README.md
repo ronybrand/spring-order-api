@@ -88,36 +88,64 @@ document outright, same retry/DLQ contract as the upsert path.
 - RabbitMQ + Mailpit (order status-change notifications and view projection)
 - JUnit 5 + Mockito + AssertJ + Testcontainers + Pact JVM
 
-## Running locally
+## Quick demo (Docker only)
+
+No local Java/Maven install needed - builds the app image and brings up the entire stack
+(Postgres, MongoDB, Redis, RabbitMQ, Keycloak pre-provisioned with a realm/client/roles/user via
+[`keycloak/realm-export.json`](./keycloak/realm-export.json), and the packaged app itself):
+
+```bash
+docker compose up -d --build
+```
+
+The API comes up at `http://localhost:8080/api` (give it a minute on first run - a fresh Keycloak
+realm import takes longer than the app's first connection attempt, so `app` is configured to
+restart automatically until Keycloak is ready). Get a token and call a protected endpoint:
+
+```bash
+TOKEN=$(docker run --rm --network spring-order-api_default curlimages/curl -sS -X POST \
+  http://keycloak:8080/realms/orderapi/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=order-api -d client_secret=order-api-secret \
+  -d username=demo -d password=demo123 | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/orders/search
+```
+
+(The token request runs through a throwaway container on the same Docker network, resolving
+`keycloak` the same way the `app` service does - Keycloak's issuer is derived from the request's
+own host/port, so this needs to go through the same address the `app` service uses internally,
+not the host-published port. See the `KC_HOSTNAME` comment in `docker-compose.yml`.)
+
+`demo`/`demo123` (realm roles `USER` and `ADMIN`) is the only user provisioned this way - it
+exists solely for this demo/local-dev convenience and only in this local Postgres-backed Keycloak
+instance, never anything to reuse anywhere real.
+
+## Running locally (hot reload)
+
+Day-to-day development runs the app directly instead, for fast rebuild/reload - only the
+dependencies come from Docker:
 
 ```bash
 docker compose up -d postgres keycloak keycloak-db rabbitmq mongo redis
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-The API comes up at `http://localhost:8080/api`.
+The API comes up at `http://localhost:8080/api`. Keycloak is pre-provisioned the same way as the
+quick demo above (same realm/client/`demo` user) - since the app now runs directly on the host
+rather than in the Docker network, request it through the published port instead:
+`http://localhost:8085/realms/orderapi/protocol/openid-connect/token` (same grant/params as
+above). This matches `OAUTH2_ISSUER_URI`'s default in `application.yml`, since Keycloak's issuer
+follows whichever host/port a request actually came in on.
 
 ### API documentation (Swagger)
 
 **Disabled by default** outside the `dev` profile - enforced by `SwaggerDisabledByDefaultTest`,
 which reads the real `application.yml` rather than relying on manual review, so the full API
-schema is never exposed in production by accident. With `-Dspring-boot.run.profiles=dev`:
+schema is never exposed in production by accident. With the `dev` profile active (either flow
+above):
 
 - **Swagger UI:** `http://localhost:8080/api/swagger-ui.html`
 - **OpenAPI JSON:** `http://localhost:8080/api/v3/api-docs`
-
-### Keycloak (first time)
-
-`docker-compose.yml` only starts Keycloak - the realm/client/roles are not provisioned
-automatically yet. To test manually against the real server (the automated `*ControllerIT` tests
-**don't** need this, they use a local RSA key pair):
-
-1. Admin console at `http://localhost:8085` (`admin`/`admin`).
-2. Create an `orderapi` realm, a confidential client with audience `order-api`, and the realm
-   roles `USER`/`ADMIN`.
-3. Create a test user with those roles and obtain a token via
-   `POST /realms/orderapi/protocol/openid-connect/token` (`password` or `client_credentials`
-   grant, depending on how the client is configured).
 
 ## Configuration &amp; deployment notes
 

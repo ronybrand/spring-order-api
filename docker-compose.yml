@@ -33,7 +33,10 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:latest
-    command: start-dev
+    # --import-realm loads ./keycloak/realm-export.json on startup (idempotent - skipped if the
+    # realm already exists), provisioning the orderapi realm/client/roles/user automatically so
+    # `docker compose up` needs no manual Keycloak setup.
+    command: start-dev --import-realm
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
@@ -41,8 +44,19 @@ services:
       KC_DB_PASSWORD: keycloak
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      # Deliberately NOT fixed: Keycloak's default request-derived issuer keeps both access paths
+      # working with their own natural address - the `app` service resolves `keycloak:8080`
+      # (Docker network) and gets that as `iss`; a developer running the app locally via
+      # `./mvnw spring-boot:run` reaches this same container through the published port
+      # (`localhost:8085`) and gets `iss=http://localhost:8085/...`, matching the OAUTH2_ISSUER_URI
+      # default in application.yml. A *fixed* hostname would satisfy only one of these two paths at
+      # a time (Spring Security's OIDC discovery rejects a returned issuer that doesn't match the
+      # URI it was fetched from) - see README § Quick demo for how token-fetching for the
+      # Docker-only demo path stays consistent with the `app` service without needing one.
     ports:
       - "8085:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
       keycloak-db:
         condition: service_healthy
@@ -85,6 +99,42 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Only started by a plain `docker compose up` (or explicitly named) - day-to-day local
+  # development runs the app via `./mvnw spring-boot:run` instead for hot reload, see README.
+  # This service exists so the whole stack, packaged app included, can come up with one command
+  # and no local Java/Maven install - see README § Quick demo (Docker only).
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: postgres
+      DB_USERNAME: ${DB_USERNAME:-orderapi}
+      DB_PASSWORD: ${DB_PASSWORD:-orderapi}
+      RABBITMQ_HOST: rabbitmq
+      MONGO_HOST: mongo
+      REDIS_HOST: redis
+      SMTP_HOST: mailpit
+      # Fixed to the same value Keycloak issues tokens under (KC_HOSTNAME above) - both this
+      # service and any external client fetching a token (see README) need to agree on it.
+      OAUTH2_ISSUER_URI: http://keycloak:8080/realms/orderapi
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    # Keycloak has no reliable healthcheck available in its dev-mode image (see comment on that
+    # service), and a fresh realm import can take longer than the app's first OIDC discovery
+    # attempt at boot - restart-on-failure instead of a fragile startup ordering hack.
+    restart: on-failure:5
 
 volumes:
   postgres-data:
