@@ -3,6 +3,7 @@ package br.com.ronybrand.orderapi.order;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,6 +13,7 @@ import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
+import br.com.ronybrand.orderapi.commons.messaging.OutboxService;
 import br.com.ronybrand.orderapi.customer.Customer;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
 import jakarta.persistence.EntityManager;
@@ -21,7 +23,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
@@ -31,14 +32,18 @@ class OrderServiceTest {
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
     @SuppressWarnings("unchecked")
     private final AuditorAware<String> auditorAware = mock(AuditorAware.class);
-    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final OutboxService outboxService = mock(OutboxService.class);
     private final EntityManager entityManager = mock(EntityManager.class);
     private final PaginationProperties paginationProperties = new PaginationProperties(0, 20, 100);
     private final OrderService service =
-            new OrderService(orderRepository, customerRepository, auditorAware, eventPublisher, entityManager, paginationProperties);
+            new OrderService(orderRepository, customerRepository, auditorAware, outboxService, entityManager, paginationProperties);
 
     private static ItemRequestDto item(final String description, final String unitPrice, final int quantity) {
         return new ItemRequestDto(description, new BigDecimal(unitPrice), quantity);
+    }
+
+    private void verifyOrderChangedEnqueued() {
+        verify(outboxService).enqueue(eq("OrderChangedEvent"), any(), any(), any(), any());
     }
 
     @Test
@@ -105,7 +110,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void create_ShouldPublishOrderChangedEvent() {
+    void create_ShouldEnqueueOrderChangedEvent() {
         final UUID customerId = UUID.randomUUID();
         final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
         when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.of(customer));
@@ -113,7 +118,7 @@ class OrderServiceTest {
 
         service.create(customerId, List.of());
 
-        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+        verifyOrderChangedEnqueued();
     }
 
     @Test
@@ -152,7 +157,7 @@ class OrderServiceTest {
         assertThat(order.getDeletedAt()).isNotNull();
         assertThat(order.getDeletedBy()).isEqualTo("some-user");
         verify(orderRepository).save(order);
-        verify(eventPublisher).publishEvent(new OrderDeletedEvent(orderId));
+        verify(outboxService).enqueue(eq("OrderDeletedEvent"), eq(orderId), any(), any(), eq(new OrderDeletedEvent(orderId)));
     }
 
     @Test
@@ -162,7 +167,7 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> service.delete(orderId)).isInstanceOf(ResourceNotFoundException.class);
         verify(orderRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any(OrderDeletedEvent.class));
+        verify(outboxService, never()).enqueue(eq("OrderDeletedEvent"), any(), any(), any(), any());
     }
 
     private static Order openOrderWith(final Item... items) {
@@ -189,14 +194,14 @@ class OrderServiceTest {
     }
 
     @Test
-    void addItem_ShouldPublishOrderChangedEvent_WhenSucceeds() {
+    void addItem_ShouldEnqueueOrderChangedEvent_WhenSucceeds() {
         final Order order = openOrderWith();
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.addItem(order.getId(), item("Widget", "10.00", 1));
 
-        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+        verifyOrderChangedEnqueued();
     }
 
     @Test
@@ -227,7 +232,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void updateItemQuantity_ShouldPublishOrderChangedEvent_WhenSucceeds() {
+    void updateItemQuantity_ShouldEnqueueOrderChangedEvent_WhenSucceeds() {
         final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
         final Order order = openOrderWith(existingItem);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -235,7 +240,7 @@ class OrderServiceTest {
 
         service.updateItemQuantity(order.getId(), existingItem.getId(), 5);
 
-        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+        verifyOrderChangedEnqueued();
     }
 
     @Test
@@ -278,7 +283,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void removeItem_ShouldPublishOrderChangedEvent_WhenSucceeds() {
+    void removeItem_ShouldEnqueueOrderChangedEvent_WhenSucceeds() {
         final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
         final Order order = openOrderWith(existingItem);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -286,7 +291,7 @@ class OrderServiceTest {
 
         service.removeItem(order.getId(), existingItem.getId());
 
-        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+        verifyOrderChangedEnqueued();
     }
 
     @Test
@@ -355,7 +360,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void confirm_ShouldPublishStatusChangedEvent_WhenCustomerHasEmail() {
+    void confirm_ShouldEnqueueStatusChangedEvent_WhenCustomerHasEmail() {
         final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
         final Order order = openOrderWith(existingItem);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -363,15 +368,16 @@ class OrderServiceTest {
 
         service.confirm(order.getId());
 
-        final ArgumentCaptor<OrderStatusChangedEvent> captor = ArgumentCaptor.forClass(OrderStatusChangedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().newStatus()).isEqualTo(OrderStatus.CONFIRMED);
-        assertThat(captor.getValue().oldStatus()).isEqualTo(OrderStatus.OPEN);
-        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+        final ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).enqueue(eq("OrderStatusChangedEvent"), any(), any(), any(), captor.capture());
+        final OrderStatusChangedEvent event = (OrderStatusChangedEvent) captor.getValue();
+        assertThat(event.newStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(event.oldStatus()).isEqualTo(OrderStatus.OPEN);
+        verifyOrderChangedEnqueued();
     }
 
     @Test
-    void confirm_ShouldNotPublishStatusChangedEvent_ButShouldPublishOrderChangedEvent_WhenCustomerEmailIsBlank() {
+    void confirm_ShouldNotEnqueueStatusChangedEvent_ButShouldEnqueueOrderChangedEvent_WhenCustomerEmailIsBlank() {
         final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
         final Order order = openOrderWith(existingItem);
         order.getCustomer().setEmail("");
@@ -380,8 +386,8 @@ class OrderServiceTest {
 
         service.confirm(order.getId());
 
-        verify(eventPublisher, never()).publishEvent(any(OrderStatusChangedEvent.class));
-        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+        verify(outboxService, never()).enqueue(eq("OrderStatusChangedEvent"), any(), any(), any(), any());
+        verifyOrderChangedEnqueued();
     }
 
     @Test
@@ -422,17 +428,17 @@ class OrderServiceTest {
     }
 
     @Test
-    void cancel_ShouldPublishStatusChangedEvent_WhenCustomerHasEmail() {
+    void cancel_ShouldEnqueueStatusChangedEvent_WhenCustomerHasEmail() {
         final Order order = openOrderWith();
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.cancel(order.getId());
 
-        final ArgumentCaptor<OrderStatusChangedEvent> captor = ArgumentCaptor.forClass(OrderStatusChangedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().newStatus()).isEqualTo(OrderStatus.CANCELED);
-        verify(eventPublisher).publishEvent(any(OrderChangedEvent.class));
+        final ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).enqueue(eq("OrderStatusChangedEvent"), any(), any(), any(), captor.capture());
+        assertThat(((OrderStatusChangedEvent) captor.getValue()).newStatus()).isEqualTo(OrderStatus.CANCELED);
+        verifyOrderChangedEnqueued();
     }
 
     @Test
@@ -477,7 +483,7 @@ class OrderServiceTest {
     }
 
     @Test
-    void confirm_ShouldPropagateOptimisticLockingFailure_AndNotPublishEvent_WhenOrderWasModifiedConcurrently() {
+    void confirm_ShouldPropagateOptimisticLockingFailure_AndNotEnqueueEvent_WhenOrderWasModifiedConcurrently() {
         final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
         final Order order = openOrderWith(existingItem);
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
@@ -487,11 +493,11 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> service.confirm(orderId))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(outboxService, never()).enqueue(any(), any(), any(), any(), any());
     }
 
     @Test
-    void cancel_ShouldPropagateOptimisticLockingFailure_AndNotPublishEvent_WhenOrderWasModifiedConcurrently() {
+    void cancel_ShouldPropagateOptimisticLockingFailure_AndNotEnqueueEvent_WhenOrderWasModifiedConcurrently() {
         final Order order = openOrderWith();
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
         when(orderRepository.save(any(Order.class)))
@@ -500,6 +506,6 @@ class OrderServiceTest {
 
         assertThatThrownBy(() -> service.cancel(orderId))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(outboxService, never()).enqueue(any(), any(), any(), any(), any());
     }
 }

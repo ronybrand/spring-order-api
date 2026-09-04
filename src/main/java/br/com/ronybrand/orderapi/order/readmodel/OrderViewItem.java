@@ -7,7 +7,8 @@ import lombok.Getter;
 
 /**
  * Embedded in {@link OrderView}, not its own Mongo document. {@code subtotal} is precomputed once,
- * at projection time ({@code OrderChangedEventListener}), not recomputed on every read - the point
+ * at projection time (see {@link br.com.ronybrand.orderapi.order.OrderChangedEvent}), not
+ * recomputed on every read - the point
  * of a read-model is to avoid redoing that work per request, unlike {@code ItemResponseDto} on the
  * write side (which computes it on the fly).
  */
