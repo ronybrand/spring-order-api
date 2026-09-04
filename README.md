@@ -36,14 +36,14 @@ from `confirm` or `cancel` (not every update) also fires an in-process event; a 
 re-publishes it onto a RabbitMQ queue, drained by a separate consumer (with its own retry) that
 sends the email. The two paths never block each other.
 
-The shape of that `order.status.notifications.queue` message is a **consumer-driven contract**
-(Pact JVM message pact), not just an assumption shared by convention: `OrderStatusMessagePactConsumerTest`
-declares, from `OrderNotificationRabbitListener`'s point of view, what it needs to parse the
-message and feeds a pact-generated message straight into the real listener; `OrderStatusMessagePactProviderTest`
-then verifies that the actual producer output - built with the same `JacksonJsonMessageConverter`
-`RabbitTemplate` uses in production, not a hand-rolled serializer - satisfies that contract. Both
-run as part of `./mvnw verify`, no broker required (the generated pact file lives under
-`target/pacts/`) - see [ADR 0005](./docs/adr/0005-message-pact-without-broker.md) for why.
+The messages in both RabbitMQ flows are covered by **consumer-driven contracts** (Pact JVM message
+pacts), not just assumptions shared by convention. `OrderStatusMessagePactConsumerTest` and
+`OrderProjectionMessagePactConsumerTest` declare the shapes their real listeners need and feed
+pact-generated messages into those listeners; their corresponding provider tests verify the actual
+producer output built with the same `JacksonJsonMessageConverter` `RabbitTemplate` uses in
+production. Consumers run in Surefire and providers run afterward in Failsafe, because providers
+read the pact files generated under `target/pacts/`. `./mvnw verify` runs both without a broker -
+see [ADR 0005](./docs/adr/0005-message-pact-without-broker.md) for why.
 
 Sending an email isn't naturally idempotent the way the read-model's Mongo upsert is - a RabbitMQ
 redelivery of an already-processed message would otherwise duplicate the email to the customer.
@@ -126,9 +126,11 @@ automatically yet. To test manually against the real server (the automated `*Con
 ./mvnw verify    # unit + integration (*IT, real Postgres via Testcontainers) + PMD + JaCoCo
 ```
 
-`./mvnw test` also runs the Pact JVM consumer/provider pair
-(`OrderStatusMessagePactConsumerTest`/`OrderStatusMessagePactProviderTest`) that contract-tests the
-notification queue message - see [ADR 0005](./docs/adr/0005-message-pact-without-broker.md).
+`./mvnw test` runs the Pact JVM consumer tests and writes the local contracts to `target/pacts/`.
+`./mvnw verify` then runs the provider verifications in Failsafe, together with the integration
+tests. The notification pair is
+`OrderStatusMessagePactConsumerTest`/`OrderStatusMessagePactProviderTest`; the projection pair is
+`OrderProjectionMessagePactConsumerTest`/`OrderProjectionMessagePactProviderTest`. See [ADR 0005](./docs/adr/0005-message-pact-without-broker.md).
 
 `./mvnw verify` runs automatically in CI (GitHub Actions) on every push/PR to `main` - see
 `.github/workflows/ci.yml`. JaCoCo coverage gate: 80% line / 65% branch (excludes
