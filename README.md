@@ -119,6 +119,28 @@ automatically yet. To test manually against the real server (the automated `*Con
    `POST /realms/orderapi/protocol/openid-connect/token` (`password` or `client_credentials`
    grant, depending on how the client is configured).
 
+## Configuration &amp; deployment notes
+
+Everything under `spring:` in `application.yml` is sourced from environment variables with
+local-dev defaults (`localhost`, `guest`/`guest`, etc.) - see the `${VAR:default}` pattern
+throughout. There is no secrets file to copy or `.env` to fill in for local development; the
+defaults match `docker-compose.yml` out of the box.
+
+This does **not** mean production would run the same way:
+
+- **TLS**: this application does not terminate TLS itself. In a real deployment it's expected to
+  sit behind a reverse proxy / ingress / load balancer (e.g. an Nginx ingress, a cloud load
+  balancer, or a service mesh sidecar) that handles certificates and forwards plain HTTP
+  internally - the standard pattern for a containerized Spring Boot service, not something this
+  repository configures.
+- **Secrets**: environment variables are the right mechanism for *injecting* configuration into a
+  container regardless of environment - what changes in production is *where those values come
+  from*. Locally they're plain defaults; in a real deployment they'd be populated by the
+  platform's secret store (Kubernetes `Secret`s, a cloud secrets manager, etc.) rather than
+  committed anywhere - this repository intentionally contains no production credentials to rotate.
+
+See [SECURITY.md](./SECURITY.md) for the vulnerability-reporting policy.
+
 ## Tests
 
 ```bash
