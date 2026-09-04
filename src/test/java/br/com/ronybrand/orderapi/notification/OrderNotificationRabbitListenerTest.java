@@ -41,7 +41,7 @@ class OrderNotificationRabbitListenerTest {
 
     {
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
     }
 
     private static Message rawMessage(final byte[] body) {
@@ -107,10 +107,10 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldSkipSending_WhenAlreadyProcessed() throws JsonProcessingException {
+    void onMessage_ShouldSkipSending_WhenClaimNotAcquired() throws JsonProcessingException {
         final OrderStatusChangedEvent event = event();
         final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
-        when(stringRedisTemplate.hasKey(anyString())).thenReturn(true);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(false);
 
         listener.onMessage(message);
 
@@ -118,7 +118,7 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldMarkAsProcessed_OnlyAfterSuccessfulSend() throws JsonProcessingException {
+    void onMessage_ShouldClaimAtomicallyBeforeSending_WithCorrectKeyAndTtl() throws JsonProcessingException {
         final OrderStatusChangedEvent event = event();
         final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
         final ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
@@ -126,20 +126,24 @@ class OrderNotificationRabbitListenerTest {
         listener.onMessage(message);
 
         verify(emailService, times(1)).sendOrderStatusEmail(any());
-        verify(valueOperations).set(keyCaptor.capture(), eq("1"), eq(Duration.ofHours(24)));
+        verify(valueOperations).setIfAbsent(keyCaptor.capture(), eq("1"), eq(Duration.ofHours(24)));
         assertThat(keyCaptor.getValue())
                 .contains(event.orderId().toString())
                 .contains(event.newStatus().name());
     }
 
     @Test
-    void onMessage_ShouldNotMarkAsProcessed_WhenSendExhaustsRetries() throws JsonProcessingException {
+    void onMessage_ShouldReleaseClaim_WhenSendExhaustsRetries() throws JsonProcessingException {
         final OrderStatusChangedEvent event = event();
         final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
         doThrow(new EmailSendingException("SMTP down", null)).when(emailService).sendOrderStatusEmail(any());
+        final ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
 
         assertThatThrownBy(() -> listener.onMessage(message)).isInstanceOf(AmqpRejectAndDontRequeueException.class);
 
-        verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
+        verify(stringRedisTemplate).delete(keyCaptor.capture());
+        assertThat(keyCaptor.getValue())
+                .contains(event.orderId().toString())
+                .contains(event.newStatus().name());
     }
 }

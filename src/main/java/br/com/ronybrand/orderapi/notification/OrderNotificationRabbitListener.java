@@ -25,11 +25,12 @@ import org.springframework.stereotype.Component;
  *
  * <p>Sending an email is not naturally idempotent (unlike the read-model's Mongo upsert) - a
  * RabbitMQ redelivery of an already-processed message (e.g. connection dropped between the send
- * succeeding and the ack reaching the broker) would otherwise duplicate the email to the
- * customer. Guarded with a Redis idempotency key (`SET NX` semantics via a plain existence check
- * before sending, since this consumer is single-threaded - no concurrent claim race to close),
- * written only *after* the send succeeds so a message that ends up retried/DLQ'd is never
- * wrongly marked as already sent.
+ * succeeding and the ack reaching the broker), or the same message landing on two horizontally
+ * scaled instances, would otherwise duplicate the email to the customer. Guarded with an atomic
+ * Redis claim ({@code SET NX} via {@link org.springframework.data.redis.core.ValueOperations#setIfAbsent},
+ * not a separate check-then-set) taken *before* sending, so two consumers racing on the same key
+ * can never both win it. If the send ends up exhausting retries and going to the DLQ, the claim is
+ * released so a future reprocessing of that message is never wrongly skipped as "already sent".
  */
 @Slf4j
 @Component
@@ -60,12 +61,18 @@ public class OrderNotificationRabbitListener implements MessageListener {
         }
 
         final String idempotencyKey = idempotencyKey(event);
-        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(idempotencyKey))) {
-            log.info("Notification already sent, skipping: orderId={}", event.orderId());
+        final boolean claimed = Boolean.TRUE.equals(
+                stringRedisTemplate.opsForValue().setIfAbsent(idempotencyKey, "1", IDEMPOTENCY_KEY_TTL));
+        if (!claimed) {
+            log.info("Notification already sent or in flight, skipping: orderId={}", event.orderId());
             return;
         }
-        sendWithRetry(event);
-        stringRedisTemplate.opsForValue().set(idempotencyKey, "1", IDEMPOTENCY_KEY_TTL);
+        try {
+            sendWithRetry(event);
+        } catch (final RuntimeException e) {
+            stringRedisTemplate.delete(idempotencyKey);
+            throw e;
+        }
     }
 
     private String idempotencyKey(final OrderStatusChangedEvent event) {
