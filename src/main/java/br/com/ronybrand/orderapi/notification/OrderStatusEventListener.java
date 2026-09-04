@@ -13,7 +13,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * a rolled-back {@code confirm}/{@code cancel} never triggers a notification. Publish failures
  * (e.g. broker unreachable) are logged, not propagated: the order-status change already committed
  * successfully, so a best-effort side effect failing here must not surface as an error on the
- * original request.
+ * original request. Logged at {@code ERROR}, not {@code WARN}: unlike a message already on a
+ * queue (which retries and eventually DLQs, still inspectable), a failure here means the event
+ * never left this JVM - there's nothing durable to retry or alert on except this log line, so it
+ * needs to be loud enough to page on rather than get lost as routine noise. No outbox/durable
+ * retry for this today - accepted as a rare, alertable loss rather than the added complexity of a
+ * transactional outbox table + relay process for a purely technical event.
  */
 @Slf4j
 @Component
@@ -27,7 +32,8 @@ public class OrderStatusEventListener {
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, event);
         } catch (final RuntimeException e) {
-            log.warn("Failed to publish order status notification: orderId={}", event.orderId(), e);
+            log.error("Order status notification permanently lost, publish failed and this event is never retried: orderId={}",
+                    event.orderId(), e);
         }
     }
 }

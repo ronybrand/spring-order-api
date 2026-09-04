@@ -13,8 +13,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * {@link OrderChangedEventListener}, but with no order to re-fetch: the order is already
  * soft-deleted and {@code @SQLRestriction} hides it from every query, so the id alone is the
  * whole message. Runs {@code AFTER_COMMIT} like {@link OrderChangedEventListener}, though it needs
- * no transaction of its own since it never touches the database. Publish failures are logged, not
- * propagated - same rationale as {@link OrderChangedEventListener}.
+ * no transaction of its own since it never touches the database. Publish failures are logged at
+ * {@code ERROR}, not propagated - same rationale as {@link OrderChangedEventListener}.
  */
 @Slf4j
 @Component
@@ -29,7 +29,8 @@ public class OrderDeletedEventListener {
             rabbitTemplate.convertAndSend(OrderProjectionConfig.EXCHANGE, OrderProjectionConfig.DELETE_ROUTING_KEY,
                     new OrderDeletionMessage(event.orderId()));
         } catch (final RuntimeException e) {
-            log.warn("Failed to publish order deletion message: orderId={}", event.orderId(), e);
+            log.error("Order deletion projection update permanently lost, publish failed and this event is never retried: orderId={}",
+                    event.orderId(), e);
         }
     }
 }

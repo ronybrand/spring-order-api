@@ -14,8 +14,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * transaction or DB access of its own needed, since the event already carries the full snapshot
  * {@link OrderService} built from the same managed {@code Order} it just saved, inside the
  * original transaction. Publish is best-effort: failures are logged, not propagated, so a broker
- * hiccup here never surfaces as an error on the original request - same rationale as
- * {@code OrderStatusEventListener}.
+ * hiccup here never surfaces as an error on the original request - logged at {@code ERROR} (the
+ * event never left this JVM, nothing durable to retry or inspect otherwise), same rationale as
+ * {@code notification.OrderStatusEventListener}.
  */
 @Slf4j
 @Component
@@ -29,7 +30,8 @@ public class OrderChangedEventListener {
         try {
             rabbitTemplate.convertAndSend(OrderProjectionConfig.EXCHANGE, OrderProjectionConfig.ROUTING_KEY, toMessage(event));
         } catch (final RuntimeException e) {
-            log.warn("Failed to publish order projection message: orderId={}", event.orderId(), e);
+            log.error("Order projection update permanently lost, publish failed and this event is never retried: orderId={}",
+                    event.orderId(), e);
         }
     }
 
