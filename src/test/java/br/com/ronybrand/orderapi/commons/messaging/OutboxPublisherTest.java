@@ -24,8 +24,12 @@ class OutboxPublisherTest {
     private final OutboxPublisher publisher = new OutboxPublisher(outboxService, rabbitTemplate, messagingMetrics);
 
     private static OutboxEvent event(final OutboxStatus status, final int attempts) {
+        return event(status, attempts, "orders.changed");
+    }
+
+    private static OutboxEvent event(final OutboxStatus status, final int attempts, final String routingKey) {
         return OutboxEvent.builder().id(UUID.randomUUID()).eventType("OrderChangedEvent")
-                .aggregateId(UUID.randomUUID()).exchangeName("orders.exchange").routingKey("orders.changed")
+                .aggregateId(UUID.randomUUID()).exchangeName("orders.exchange").routingKey(routingKey)
                 .payload("{}").status(status).attempts(attempts).build();
     }
 
@@ -77,8 +81,8 @@ class OutboxPublisherTest {
 
     @Test
     void publishPending_ShouldProcessEachClaimedEventIndependently_WhenOneFailsAndOthersSucceed() {
-        final OutboxEvent failing = event(OutboxStatus.PROCESSING, 0);
-        final OutboxEvent succeeding = event(OutboxStatus.PROCESSING, 0);
+        final OutboxEvent failing = event(OutboxStatus.PROCESSING, 0, "orders.changed.failing");
+        final OutboxEvent succeeding = event(OutboxStatus.PROCESSING, 0, "orders.changed.succeeding");
         when(outboxService.claimBatch()).thenReturn(List.of(failing, succeeding));
         org.mockito.Mockito.doThrow(new org.springframework.amqp.AmqpException("broker unreachable"))
                 .when(rabbitTemplate).send(eq(failing.getExchangeName()), eq(failing.getRoutingKey()), any(Message.class));
