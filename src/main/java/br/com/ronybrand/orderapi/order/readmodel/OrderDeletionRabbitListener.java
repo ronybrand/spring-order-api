@@ -1,7 +1,8 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessageParsing;
+import br.com.ronybrand.orderapi.commons.messaging.RetryLoop;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
@@ -44,44 +45,20 @@ public class OrderDeletionRabbitListener implements MessageListener {
     }
 
     private OrderDeletionMessage parse(final Message message) {
-        final OrderDeletionMessage deletionMessage;
-        try {
-            deletionMessage = objectMapper.readValue(message.getBody(), OrderDeletionMessage.class);
-        } catch (final IOException | RuntimeException e) {
-            throw new MalformedOrderProjectionMessageException("Malformed order deletion message", e);
-        }
-        if (deletionMessage == null || deletionMessage.orderId() == null) {
-            throw new MalformedOrderProjectionMessageException("Order deletion message is missing required fields", null);
-        }
-        return deletionMessage;
+        return MessageParsing.parseOrThrow(message.getBody(), objectMapper, OrderDeletionMessage.class,
+                deletionMessage -> deletionMessage == null || deletionMessage.orderId() == null,
+                "Malformed order deletion message", "Order deletion message is missing required fields",
+                MalformedOrderProjectionMessageException::new);
     }
 
     private void deleteWithRetry(final OrderDeletionMessage message) {
-        long backoffMs = OrderProjectionRetryPolicy.INITIAL_BACKOFF.toMillis();
-        for (int attempt = 1; ; attempt++) {
-            try {
-                orderProjectionService.deleteById(message.orderId());
-                return;
-            } catch (final OrderProjectionWriteException e) {
-                if (attempt > OrderProjectionRetryPolicy.MAX_RETRIES) {
-                    log.error("Failed to delete order view after {} attempts, sending to DLQ: orderId={}",
-                            attempt, message.orderId(), e);
-                    throw new AmqpRejectAndDontRequeueException("Exhausted retries", e);
-                }
-                log.warn("Transient failure deleting order view (attempt {}/{}), retrying in {}ms: orderId={}",
-                        attempt, OrderProjectionRetryPolicy.MAX_RETRIES + 1, backoffMs, message.orderId(), e);
-                sleep(backoffMs);
-                backoffMs = (long) (backoffMs * OrderProjectionRetryPolicy.BACKOFF_MULTIPLIER);
-            }
-        }
-    }
-
-    private void sleep(final long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while waiting to retry order view delete", e);
-        }
+        RetryLoop.run(OrderProjectionWriteException.class, OrderProjectionRetryPolicy.MAX_RETRIES,
+                OrderProjectionRetryPolicy.INITIAL_BACKOFF, OrderProjectionRetryPolicy.BACKOFF_MULTIPLIER,
+                () -> orderProjectionService.deleteById(message.orderId()),
+                (attempt, maxAttempts, backoffMs, e) -> log.warn(
+                        "Transient failure deleting order view (attempt {}/{}), retrying in {}ms: orderId={}",
+                        attempt, maxAttempts, backoffMs, message.orderId(), e),
+                (attempts, e) -> log.error("Failed to delete order view after {} attempts, sending to DLQ: orderId={}",
+                        attempts, message.orderId(), e));
     }
 }

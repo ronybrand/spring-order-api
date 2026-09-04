@@ -1,7 +1,8 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessageParsing;
+import br.com.ronybrand.orderapi.commons.messaging.RetryLoop;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.Message;
@@ -45,16 +46,9 @@ public class OrderProjectionRabbitListener implements MessageListener {
     }
 
     private OrderProjectionMessage parse(final Message message) {
-        final OrderProjectionMessage projectionMessage;
-        try {
-            projectionMessage = objectMapper.readValue(message.getBody(), OrderProjectionMessage.class);
-        } catch (final IOException | RuntimeException e) {
-            throw new MalformedOrderProjectionMessageException("Malformed order projection message", e);
-        }
-        if (isMissingRequiredField(projectionMessage)) {
-            throw new MalformedOrderProjectionMessageException("Order projection message is missing required fields", null);
-        }
-        return projectionMessage;
+        return MessageParsing.parseOrThrow(message.getBody(), objectMapper, OrderProjectionMessage.class,
+                this::isMissingRequiredField, "Malformed order projection message",
+                "Order projection message is missing required fields", MalformedOrderProjectionMessageException::new);
     }
 
     private boolean isMissingRequiredField(final OrderProjectionMessage message) {
@@ -68,31 +62,13 @@ public class OrderProjectionRabbitListener implements MessageListener {
     }
 
     private void upsertWithRetry(final OrderProjectionMessage message) {
-        long backoffMs = OrderProjectionRetryPolicy.INITIAL_BACKOFF.toMillis();
-        for (int attempt = 1; ; attempt++) {
-            try {
-                orderProjectionService.upsert(message);
-                return;
-            } catch (final OrderProjectionWriteException e) {
-                if (attempt > OrderProjectionRetryPolicy.MAX_RETRIES) {
-                    log.error("Failed to upsert order view after {} attempts, sending to DLQ: orderId={}",
-                            attempt, message.orderId(), e);
-                    throw new AmqpRejectAndDontRequeueException("Exhausted retries", e);
-                }
-                log.warn("Transient failure upserting order view (attempt {}/{}), retrying in {}ms: orderId={}",
-                        attempt, OrderProjectionRetryPolicy.MAX_RETRIES + 1, backoffMs, message.orderId(), e);
-                sleep(backoffMs);
-                backoffMs = (long) (backoffMs * OrderProjectionRetryPolicy.BACKOFF_MULTIPLIER);
-            }
-        }
-    }
-
-    private void sleep(final long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while waiting to retry order view upsert", e);
-        }
+        RetryLoop.run(OrderProjectionWriteException.class, OrderProjectionRetryPolicy.MAX_RETRIES,
+                OrderProjectionRetryPolicy.INITIAL_BACKOFF, OrderProjectionRetryPolicy.BACKOFF_MULTIPLIER,
+                () -> orderProjectionService.upsert(message),
+                (attempt, maxAttempts, backoffMs, e) -> log.warn(
+                        "Transient failure upserting order view (attempt {}/{}), retrying in {}ms: orderId={}",
+                        attempt, maxAttempts, backoffMs, message.orderId(), e),
+                (attempts, e) -> log.error("Failed to upsert order view after {} attempts, sending to DLQ: orderId={}",
+                        attempts, message.orderId(), e));
     }
 }

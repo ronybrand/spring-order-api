@@ -1,8 +1,9 @@
 package br.com.ronybrand.orderapi.notification;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessageParsing;
+import br.com.ronybrand.orderapi.commons.messaging.RetryLoop;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
@@ -80,16 +81,9 @@ public class OrderNotificationRabbitListener implements MessageListener {
     }
 
     private OrderStatusChangedEvent parse(final Message message) {
-        final OrderStatusChangedEvent event;
-        try {
-            event = objectMapper.readValue(message.getBody(), OrderStatusChangedEvent.class);
-        } catch (final IOException | RuntimeException e) {
-            throw new MalformedOrderStatusMessageException("Malformed order status message", e);
-        }
-        if (isMissingRequiredField(event)) {
-            throw new MalformedOrderStatusMessageException("Order status message is missing required fields", null);
-        }
-        return event;
+        return MessageParsing.parseOrThrow(message.getBody(), objectMapper, OrderStatusChangedEvent.class,
+                this::isMissingRequiredField, "Malformed order status message",
+                "Order status message is missing required fields", MalformedOrderStatusMessageException::new);
     }
 
     private boolean isMissingRequiredField(final OrderStatusChangedEvent event) {
@@ -104,31 +98,13 @@ public class OrderNotificationRabbitListener implements MessageListener {
     }
 
     private void sendWithRetry(final OrderStatusChangedEvent event) {
-        long backoffMs = NotificationRetryPolicy.INITIAL_BACKOFF.toMillis();
-        for (int attempt = 1; ; attempt++) {
-            try {
-                emailService.sendOrderStatusEmail(event);
-                return;
-            } catch (final EmailSendingException e) {
-                if (attempt > NotificationRetryPolicy.MAX_RETRIES) {
-                    log.error("Failed to send notification after {} attempts, sending to DLQ: orderId={}",
-                            attempt, event.orderId(), e);
-                    throw new AmqpRejectAndDontRequeueException("Exhausted retries", e);
-                }
-                log.warn("Transient failure sending notification (attempt {}/{}), retrying in {}ms: orderId={}",
-                        attempt, NotificationRetryPolicy.MAX_RETRIES + 1, backoffMs, event.orderId(), e);
-                sleep(backoffMs);
-                backoffMs = (long) (backoffMs * NotificationRetryPolicy.BACKOFF_MULTIPLIER);
-            }
-        }
-    }
-
-    private void sleep(final long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while waiting to retry notification", e);
-        }
+        RetryLoop.run(EmailSendingException.class, NotificationRetryPolicy.MAX_RETRIES,
+                NotificationRetryPolicy.INITIAL_BACKOFF, NotificationRetryPolicy.BACKOFF_MULTIPLIER,
+                () -> emailService.sendOrderStatusEmail(event),
+                (attempt, maxAttempts, backoffMs, e) -> log.warn(
+                        "Transient failure sending notification (attempt {}/{}), retrying in {}ms: orderId={}",
+                        attempt, maxAttempts, backoffMs, event.orderId(), e),
+                (attempts, e) -> log.error("Failed to send notification after {} attempts, sending to DLQ: orderId={}",
+                        attempts, event.orderId(), e));
     }
 }
