@@ -1,9 +1,11 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.ronybrand.orderapi.AbstractAuthIntegrationTest;
 import br.com.ronybrand.orderapi.TestSecurityConfig;
+import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
 import br.com.ronybrand.orderapi.order.OrderStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -65,12 +67,23 @@ class OrderProjectionIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
-    void deleteById_ShouldRemoveFromRealMongo() {
+    void deleteById_ShouldMakeViewUnreachable_ThroughRealMongo() {
         final UUID orderId = UUID.randomUUID();
         orderProjectionService.upsert(message(orderId));
 
         orderProjectionService.deleteById(orderId);
 
-        assertThat(orderViewRepository.findById(orderId.toString())).isEmpty();
+        assertThatThrownBy(() -> orderProjectionService.findById(orderId)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void upsert_ShouldNotResurrectView_WhenItArrivesAfterDelete() {
+        final UUID orderId = UUID.randomUUID();
+        orderProjectionService.upsert(message(orderId));
+        orderProjectionService.deleteById(orderId);
+
+        orderProjectionService.upsert(message(orderId));
+
+        assertThatThrownBy(() -> orderProjectionService.findById(orderId)).isInstanceOf(ResourceNotFoundException.class);
     }
 }

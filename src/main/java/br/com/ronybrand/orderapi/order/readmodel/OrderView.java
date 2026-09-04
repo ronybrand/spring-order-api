@@ -5,11 +5,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -20,12 +17,16 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * every upsert, and last-write-wins is an accepted trade-off for a disposable projection (unlike
  * the Order aggregate root, which genuinely needs optimistic locking against concurrent HTTP
  * writers).
+ *
+ * <p>{@code deletedAt} makes a delete a tombstone (a save, not a Mongo-level remove) rather than
+ * an outright removal: the upsert and delete queues retry independently, so a delayed upsert can
+ * arrive after the delete has already been processed. Once tombstoned, an order can never be
+ * mutated again ({@code @SQLRestriction} on the write-side {@code Order} blocks it), so any later
+ * upsert for that id is necessarily a stale retry and {@link OrderProjectionService} skips it
+ * instead of resurrecting the deleted view.
  */
 @Getter
-@Setter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @Document(collection = "order_views")
 public class OrderView {
 
@@ -37,4 +38,5 @@ public class OrderView {
     private List<OrderViewItem> items;
     private BigDecimal totalAmount;
     private LocalDateTime updatedAt;
+    private LocalDateTime deletedAt;
 }
