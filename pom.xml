@@ -246,14 +246,20 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
-					<!-- -Djava.net.preferIPv4Stack=true avoids Testcontainers network instability on Docker Desktop/WSL2 on Windows -->
-					<argLine>@{argLine} -Xmx1536m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
+					<!-- -Djava.net.preferIPv4Stack=true avoids Testcontainers network instability on Docker Desktop/WSL2 on Windows.
+						 768m (not the 1536m failsafe below needs): Surefire only runs plain unit tests plus the
+						 Pact JVM consumer/provider pairs - no Spring context, no Testcontainers - so it needs
+						 headroom over the original 512m for Pact's own JSON/matching machinery, not a full
+						 Testcontainers-sized heap. -->
+					<argLine>@{argLine} -Xmx768m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
 				<configuration>
+					<!-- 1536m: *IT classes boot a full Spring context plus Postgres/Mongo/RabbitMQ/Redis
+						 Testcontainers together, unlike Surefire's plain unit tests above. -->
 					<argLine>@{argLine} -Xmx1536m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
 				</configuration>
 				<executions>
