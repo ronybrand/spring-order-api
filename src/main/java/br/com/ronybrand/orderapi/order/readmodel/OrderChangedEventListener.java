@@ -4,7 +4,6 @@ import br.com.ronybrand.orderapi.order.Item;
 import br.com.ronybrand.orderapi.order.Order;
 import br.com.ronybrand.orderapi.order.OrderChangedEvent;
 import br.com.ronybrand.orderapi.order.OrderRepository;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +53,7 @@ public class OrderChangedEventListener {
     }
 
     private static OrderProjectionItem toItem(final Item item) {
-        final BigDecimal subtotal = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
-        return new OrderProjectionItem(item.getId(), item.getDescription(), item.getUnitPrice(), item.getQuantity(), subtotal);
+        return new OrderProjectionItem(item.getId(), item.getDescription(), item.getUnitPrice(), item.getQuantity(),
+                item.getSubtotal());
     }
 }

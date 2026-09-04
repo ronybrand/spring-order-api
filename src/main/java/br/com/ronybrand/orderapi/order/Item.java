@@ -49,4 +49,14 @@ public class Item {
 
     @Column(nullable = false)
     private Integer quantity;
+
+    /**
+     * Never persisted - derived on demand so it can never drift from {@code unitPrice}/{@code quantity}.
+     * The single source of truth for this formula: {@link Order#calculateTotal()},
+     * {@code ItemResponseDto#from} and the read-model projection all call this instead of each
+     * re-deriving it.
+     */
+    public BigDecimal getSubtotal() {
+        return unitPrice.multiply(BigDecimal.valueOf(quantity));
+    }
 }

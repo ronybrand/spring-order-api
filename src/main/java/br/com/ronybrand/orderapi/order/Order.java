@@ -109,7 +109,7 @@ public class Order {
      */
     public void calculateTotal() {
         this.total = items.stream()
-                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .map(Item::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 

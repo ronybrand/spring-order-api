@@ -10,6 +10,6 @@ public record ItemResponseDto(UUID id, String description, BigDecimal unitPrice,
 
     public static ItemResponseDto from(final Item item) {
         return new ItemResponseDto(item.getId(), item.getDescription(), item.getUnitPrice(), item.getQuantity(),
-                item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+                item.getSubtotal());
     }
 }
