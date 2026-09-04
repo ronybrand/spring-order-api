@@ -1,9 +1,11 @@
 package br.com.ronybrand.orderapi.notification;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import au.com.dius.pact.consumer.MessagePactBuilder;
 import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
@@ -15,6 +17,7 @@ import au.com.dius.pact.core.model.annotations.Pact;
 import au.com.dius.pact.core.model.messaging.Message;
 import au.com.dius.pact.core.model.messaging.MessagePact;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +61,7 @@ class OrderStatusMessagePactConsumerTest {
         final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         final StringRedisTemplate stringRedisTemplate =
                 mock(StringRedisTemplate.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
+        when(stringRedisTemplate.opsForValue().setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
         final OrderNotificationRabbitListener listener =
                 new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate);
 
