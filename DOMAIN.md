@@ -195,28 +195,39 @@ Categories and codes, mappable to exceptions/HTTP status in any stack:
 Reference only for the contract — replicating the same transport technology in future
 implementations is not required.
 
-### `/orders` (requires an authenticated user)
+Every endpoint below requires a valid JWT. A missing/invalid token returns `401`; a valid token
+without the required role returns `403` with `AUTHORIZATION-01`. Error responses use the global
+shape (`message`, stable `code`, optional `params` and `requestId`) and the codes listed in §6.
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/orders` | Create order |
-| GET | `/orders/search` | Search orders (query params) |
-| GET | `/orders/{id}` | Get order by id |
-| DELETE | `/orders/{id}` | Delete (soft) order |
-| POST | `/orders/{id}/items` | Add item |
-| PATCH | `/orders/{orderId}/items/{itemId}` | Update item quantity |
-| DELETE | `/orders/{orderId}/items/{itemId}` | Remove item |
-| POST | `/orders/{id}/confirm` | Confirm order |
-| POST | `/orders/{id}/cancel` | Cancel order |
-| GET | `/orders/{id}/view` | Get the eventually consistent MongoDB read-model view |
+### `/orders` (requires the `USER` role)
 
-### `/customers` (mutations require the admin role; reads require an authenticated user)
+| Method | Path | Role | Success | Relevant errors |
+|---|---|---|---|---|
+| POST | `/orders` | `USER` | `201 Created` | `400 VALIDATION-01/05/06/11` |
+| GET | `/orders/search` | `USER` | `200 OK` (`Page`) | `400 VALIDATION-09/10/11` |
+| GET | `/orders/{id}` | `USER` | `200 OK` | `404 RESOURCE-NOT-FOUND-02` |
+| DELETE | `/orders/{id}` | `USER` | `204 No Content` | `404 RESOURCE-NOT-FOUND-02`, `409 CONFLICT-01` |
+| POST | `/orders/{id}/items` | `USER` | `201 Created` | `400 VALIDATION-06/11`, `404 RESOURCE-NOT-FOUND-02` |
+| PATCH | `/orders/{orderId}/items/{itemId}` | `USER` | `200 OK` | `400 VALIDATION-06/11`, `404 RESOURCE-NOT-FOUND-02/03` |
+| DELETE | `/orders/{orderId}/items/{itemId}` | `USER` | `200 OK` | `400 VALIDATION-06`, `404 RESOURCE-NOT-FOUND-02/03` |
+| POST | `/orders/{id}/confirm` | `USER` | `200 OK` | `400 VALIDATION-06/07/08`, `404 RESOURCE-NOT-FOUND-02`, `409 CONFLICT-01` |
+| POST | `/orders/{id}/cancel` | `USER` | `200 OK` | `400 VALIDATION-08`, `404 RESOURCE-NOT-FOUND-02`, `409 CONFLICT-01` |
+| GET | `/orders/{id}/view` | `USER` | `200 OK` | `404 RESOURCE-NOT-FOUND-04` |
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/customers` | Create customer (admin) |
-| GET | `/customers/search` | Search customers (query params) |
-| GET | `/customers/{id}` | Get customer by id |
-| PUT | `/customers/{id}` | Update customer (admin) |
-| PATCH | `/customers/{id}/marketing-opt-in` | Update only the marketing opt-in flag (admin) |
-| DELETE | `/customers/{id}` | Delete (soft) customer (admin) |
+The `/orders/{id}/view` response is eventually consistent: `404 RESOURCE-NOT-FOUND-04` can mean
+the projection is still catching up after a write, not only that the order id is unknown.
+
+### `/customers` (reads require `USER`; mutations require `ADMIN`)
+
+| Method | Path | Role | Success | Relevant errors |
+|---|---|---|---|---|
+| POST | `/customers` | `ADMIN` | `201 Created` | `400 VALIDATION-01/11`, `409 VALIDATION-02/03` |
+| GET | `/customers/search` | `USER` | `200 OK` (`Page`) | `400 VALIDATION-09/10/11` |
+| GET | `/customers/{id}` | `USER` | `200 OK` | `404 RESOURCE-NOT-FOUND-01` |
+| PUT | `/customers/{id}` | `ADMIN` | `204 No Content` | `400 VALIDATION-01/11`, `404 RESOURCE-NOT-FOUND-01`, `409 VALIDATION-02/03` |
+| PATCH | `/customers/{id}/marketing-opt-in` | `ADMIN` | `204 No Content` | `400 VALIDATION-11`, `404 RESOURCE-NOT-FOUND-01` |
+| DELETE | `/customers/{id}` | `ADMIN` | `204 No Content` | `400 VALIDATION-04`, `404 RESOURCE-NOT-FOUND-01` |
+
+For search endpoints, filters use `filter[field]=value` or
+`filter[field][operator]=value`, ordering uses `order=field` or `order=-field`, and `page` is
+zero-based with a default `size` of 20.
