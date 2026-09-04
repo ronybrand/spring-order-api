@@ -14,8 +14,11 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     /**
      * Fetch-joins {@code customer} and {@code items} (both {@code FetchType.LAZY}) so
      * {@code OrderChangedEventListener} can read them after the original request's transaction has
-     * already committed, without a {@code LazyInitializationException}.
+     * already committed, without a {@code LazyInitializationException}. {@code distinct} is
+     * required: {@code left join fetch} on the to-many {@code items} collection returns one
+     * duplicated row per item, which breaks this method's single-result {@code Optional} return
+     * for any order with more than one item.
      */
-    @Query("select o from Order o join fetch o.customer left join fetch o.items where o.id = :id")
+    @Query("select distinct o from Order o join fetch o.customer left join fetch o.items where o.id = :id")
     Optional<Order> findByIdWithItems(@Param("id") UUID id);
 }

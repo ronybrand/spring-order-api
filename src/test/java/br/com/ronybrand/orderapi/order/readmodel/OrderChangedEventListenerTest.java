@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 class OrderChangedEventListenerTest {
 
@@ -67,5 +68,15 @@ class OrderChangedEventListenerTest {
                 .convertAndSend(any(String.class), any(String.class), any(Object.class));
 
         listener.onOrderChanged(new OrderChangedEvent(order.getId()));
+    }
+
+    @Test
+    void onOrderChanged_ShouldNotPropagate_WhenRepositoryLookupFails() {
+        final UUID orderId = UUID.randomUUID();
+        when(orderRepository.findByIdWithItems(orderId)).thenThrow(new DataAccessResourceFailureException("db down"));
+
+        listener.onOrderChanged(new OrderChangedEvent(orderId));
+
+        verify(rabbitTemplate, never()).convertAndSend(any(String.class), any(String.class), any(Object.class));
     }
 }
