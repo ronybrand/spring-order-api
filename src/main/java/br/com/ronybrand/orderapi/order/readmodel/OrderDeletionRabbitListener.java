@@ -13,6 +13,10 @@ import org.springframework.stereotype.Component;
  * Counterpart to {@link OrderProjectionRabbitListener} for the delete queue - same classification
  * and retry contract (malformed payload straight to DLQ, transient failure retried with backoff up
  * to {@link OrderProjectionRetryPolicy#MAX_RETRIES}), just deleting instead of upserting.
+ *
+ * <p>Implements {@link MessageListener} directly (not {@code @RabbitListener}), same as
+ * {@link OrderProjectionRabbitListener}, so the raw message body is available for classification
+ * before any automatic conversion could throw first.
  */
 @Slf4j
 @Component
