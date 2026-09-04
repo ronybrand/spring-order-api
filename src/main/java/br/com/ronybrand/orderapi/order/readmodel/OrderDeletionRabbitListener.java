@@ -1,6 +1,7 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
 import br.com.ronybrand.orderapi.commons.messaging.MessageParsing;
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.commons.messaging.RetryLoop;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -23,13 +24,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class OrderDeletionRabbitListener implements MessageListener {
 
+    private static final String LISTENER_NAME = "deletion";
+
     private final OrderProjectionService orderProjectionService;
     private final ObjectMapper objectMapper;
+    private final MessagingMetrics messagingMetrics;
 
     public OrderDeletionRabbitListener(final OrderProjectionService orderProjectionService,
-            @Qualifier("orderProjectionObjectMapper") final ObjectMapper objectMapper) {
+            @Qualifier("orderProjectionObjectMapper") final ObjectMapper objectMapper, final MessagingMetrics messagingMetrics) {
         this.orderProjectionService = orderProjectionService;
         this.objectMapper = objectMapper;
+        this.messagingMetrics = messagingMetrics;
     }
 
     @Override
@@ -39,6 +44,7 @@ public class OrderDeletionRabbitListener implements MessageListener {
             deletionMessage = parse(message);
         } catch (final MalformedOrderProjectionMessageException e) {
             log.warn("{} - sending straight to DLQ", e.getMessage());
+            messagingMetrics.recordDlq(LISTENER_NAME);
             throw new AmqpRejectAndDontRequeueException(e.getMessage(), e);
         }
         deleteWithRetry(deletionMessage);
@@ -55,10 +61,15 @@ public class OrderDeletionRabbitListener implements MessageListener {
         RetryLoop.run(OrderProjectionWriteException.class, OrderProjectionRetryPolicy.MAX_RETRIES,
                 OrderProjectionRetryPolicy.INITIAL_BACKOFF, OrderProjectionRetryPolicy.BACKOFF_MULTIPLIER,
                 () -> orderProjectionService.deleteById(message.orderId()),
-                (attempt, maxAttempts, backoffMs, e) -> log.warn(
-                        "Transient failure deleting order view (attempt {}/{}), retrying in {}ms: orderId={}",
-                        attempt, maxAttempts, backoffMs, message.orderId(), e),
-                (attempts, e) -> log.error("Failed to delete order view after {} attempts, sending to DLQ: orderId={}",
-                        attempts, message.orderId(), e));
+                (attempt, maxAttempts, backoffMs, e) -> {
+                    log.warn("Transient failure deleting order view (attempt {}/{}), retrying in {}ms: orderId={}",
+                            attempt, maxAttempts, backoffMs, message.orderId(), e);
+                    messagingMetrics.recordRetry(LISTENER_NAME);
+                },
+                (attempts, e) -> {
+                    log.error("Failed to delete order view after {} attempts, sending to DLQ: orderId={}",
+                            attempts, message.orderId(), e);
+                    messagingMetrics.recordDlq(LISTENER_NAME);
+                });
     }
 }

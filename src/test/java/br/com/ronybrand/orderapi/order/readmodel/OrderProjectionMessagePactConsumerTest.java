@@ -14,7 +14,9 @@ import au.com.dius.pact.core.model.PactSpecVersion;
 import au.com.dius.pact.core.model.annotations.Pact;
 import au.com.dius.pact.core.model.messaging.Message;
 import au.com.dius.pact.core.model.messaging.MessagePact;
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,7 +65,8 @@ class OrderProjectionMessagePactConsumerTest {
     void listenerShouldParseAndActOnPactMessage(final List<Message> messages) {
         final OrderProjectionService orderProjectionService = mock(OrderProjectionService.class);
         final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        final OrderProjectionRabbitListener listener = new OrderProjectionRabbitListener(orderProjectionService, objectMapper);
+        final OrderProjectionRabbitListener listener = new OrderProjectionRabbitListener(orderProjectionService, objectMapper,
+            new MessagingMetrics(new SimpleMeterRegistry()));
 
         final byte[] body = messages.get(0).contentsAsBytes();
         listener.onMessage(new org.springframework.amqp.core.Message(body, new MessageProperties()));

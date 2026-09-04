@@ -12,10 +12,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.order.OrderStatus;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -37,7 +39,7 @@ class OrderNotificationRabbitListenerTest {
     @SuppressWarnings("unchecked")
     private final ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
     private final OrderNotificationRabbitListener listener =
-            new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate);
+            new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate, new MessagingMetrics(new SimpleMeterRegistry()));
 
     {
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);

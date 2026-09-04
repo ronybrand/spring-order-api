@@ -12,6 +12,8 @@ import br.com.ronybrand.orderapi.order.Item;
 import br.com.ronybrand.orderapi.order.Order;
 import br.com.ronybrand.orderapi.order.OrderChangedEvent;
 import br.com.ronybrand.orderapi.order.OrderStatus;
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -23,7 +25,8 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 class OrderChangedEventListenerTest {
 
     private final RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
-    private final OrderChangedEventListener listener = new OrderChangedEventListener(rabbitTemplate);
+        private final OrderChangedEventListener listener =
+            new OrderChangedEventListener(rabbitTemplate, new MessagingMetrics(new SimpleMeterRegistry()));
 
     private static OrderChangedEvent eventForOrderWithItems() {
         final Customer customer = Customer.builder().id(UUID.randomUUID()).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();

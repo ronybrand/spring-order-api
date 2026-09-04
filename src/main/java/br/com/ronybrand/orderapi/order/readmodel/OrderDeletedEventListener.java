@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.order.readmodel;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.order.OrderDeletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class OrderDeletedEventListener {
 
     private final RabbitTemplate rabbitTemplate;
+    private final MessagingMetrics messagingMetrics;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderDeleted(final OrderDeletedEvent event) {
@@ -31,6 +33,7 @@ public class OrderDeletedEventListener {
         } catch (final RuntimeException e) {
             log.error("Order deletion projection update permanently lost, publish failed and this event is never retried: orderId={}",
                     event.orderId(), e);
+            messagingMetrics.recordEventLost("order-deleted");
         }
     }
 }

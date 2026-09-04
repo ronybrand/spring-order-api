@@ -6,10 +6,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.order.OrderStatus;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -62,7 +64,7 @@ class OrderNotificationIdempotencyIT {
     }
 
     private static OrderNotificationRabbitListener listener(final EmailService emailService, final ObjectMapper objectMapper) {
-        return new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate);
+        return new OrderNotificationRabbitListener(emailService, objectMapper, stringRedisTemplate, new MessagingMetrics(new SimpleMeterRegistry()));
     }
 
     @Test

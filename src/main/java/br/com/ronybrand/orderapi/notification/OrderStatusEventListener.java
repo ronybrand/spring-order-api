@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.notification;
 
+import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class OrderStatusEventListener {
 
     private final RabbitTemplate rabbitTemplate;
+    private final MessagingMetrics messagingMetrics;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderStatusChanged(final OrderStatusChangedEvent event) {
@@ -34,6 +36,7 @@ public class OrderStatusEventListener {
         } catch (final RuntimeException e) {
             log.error("Order status notification permanently lost, publish failed and this event is never retried: orderId={}",
                     event.orderId(), e);
+            messagingMetrics.recordEventLost("order-status");
         }
     }
 }
