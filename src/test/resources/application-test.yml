@@ -13,8 +13,9 @@ spring:
   rabbitmq:
     listener:
       simple:
-        # No RabbitMQ broker is guaranteed to be running for every *IT execution (e.g. CI); the
-        # consumer side (retry/DLQ contract) is covered by OrderNotificationRabbitListenerTest
-        # instead, which needs no broker. The producer side (OrderStatusEventListener) still
-        # attempts to publish and simply logs a warning if unreachable - see its try/catch.
+        # Consumers don't auto-start for every *IT by default - most don't need a live consumer
+        # (the retry/DLQ contract itself is covered by each listener's own *Test with a mocked
+        # dependency, no broker needed) and letting them race against test setup would be
+        # non-deterministic. Tests that specifically exercise the real broker (e.g. RabbitMQ DLQ
+        # coverage, OutboxPublisher) start their own container/listener explicitly.
         auto-startup: false

@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import br.com.ronybrand.orderapi.commons.config.PaginationProperties;
+import br.com.ronybrand.orderapi.commons.messaging.OutboxService;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
@@ -29,13 +29,13 @@ class OrderServiceValidationTest {
     private final CustomerRepository customerRepository = mock(CustomerRepository.class);
     @SuppressWarnings("unchecked")
     private final AuditorAware<String> auditorAware = mock(AuditorAware.class);
-    private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
+    private final OutboxService outboxService = mock(OutboxService.class);
     private final EntityManager entityManager = mock(EntityManager.class);
     private final PaginationProperties paginationProperties = new PaginationProperties(0, 20, 100);
 
     private OrderService validatedProxy() {
         final OrderService target =
-                new OrderService(orderRepository, customerRepository, auditorAware, eventPublisher, entityManager, paginationProperties);
+                new OrderService(orderRepository, customerRepository, auditorAware, outboxService, entityManager, paginationProperties);
         final LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         final MethodValidationPostProcessor postProcessor = new MethodValidationPostProcessor();

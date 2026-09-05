@@ -7,8 +7,11 @@ import br.com.ronybrand.orderapi.commons.exception.RepositoryLookups;
 import br.com.ronybrand.orderapi.commons.exception.ResourceNotFoundException;
 import br.com.ronybrand.orderapi.commons.filter.SearchService;
 import br.com.ronybrand.orderapi.commons.filter.SearchUtils;
+import br.com.ronybrand.orderapi.commons.messaging.OutboxService;
 import br.com.ronybrand.orderapi.customer.Customer;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
+import br.com.ronybrand.orderapi.notification.RabbitMQConfig;
+import br.com.ronybrand.orderapi.order.readmodel.OrderProjectionConfig;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
@@ -19,7 +22,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,7 +41,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final AuditorAware<String> auditorAware;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxService outboxService;
     private final EntityManager entityManager;
     private final PaginationProperties paginationProperties;
 
@@ -91,7 +93,8 @@ public class OrderService implements SearchService<OrderResponseDto> {
         order.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         order.setDeletedBy(auditorAware.getCurrentAuditor().orElse(SYSTEM_USER));
         orderRepository.save(order);
-        eventPublisher.publishEvent(new OrderDeletedEvent(id));
+        outboxService.enqueue("OrderDeletedEvent", id, OrderProjectionConfig.EXCHANGE,
+            OrderProjectionConfig.DELETE_ROUTING_KEY, new OrderDeletedEvent(id));
         log.info("Order deleted: id={}", id);
     }
 
@@ -205,7 +208,8 @@ public class OrderService implements SearchService<OrderResponseDto> {
      */
     private void publishOrderChanged(final Order order) {
         entityManager.flush();
-        eventPublisher.publishEvent(OrderChangedEvent.from(order));
+        outboxService.enqueue("OrderChangedEvent", order.getId(), OrderProjectionConfig.EXCHANGE,
+            OrderProjectionConfig.ROUTING_KEY, OrderChangedEvent.from(order));
     }
 
     private void publishStatusChangedEvent(final Order order, final OrderStatus oldStatus, final OrderStatus newStatus) {
@@ -213,8 +217,10 @@ public class OrderService implements SearchService<OrderResponseDto> {
         if (StringUtils.isBlank(customer.getEmail())) {
             return;
         }
-        eventPublisher.publishEvent(new OrderStatusChangedEvent(order.getId(), customer.getEmail(), customer.getName(),
-                oldStatus, newStatus, order.getTotal(), LocalDateTime.now(ZoneOffset.UTC)));
+        final OrderStatusChangedEvent event = new OrderStatusChangedEvent(order.getId(), customer.getEmail(), customer.getName(),
+            oldStatus, newStatus, order.getTotal(), LocalDateTime.now(ZoneOffset.UTC));
+        outboxService.enqueue("OrderStatusChangedEvent", order.getId(), RabbitMQConfig.EXCHANGE,
+            RabbitMQConfig.ROUTING_KEY, event);
     }
 
     private void ensureEditable(final Order order) {

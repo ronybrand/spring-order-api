@@ -24,7 +24,7 @@ import org.springframework.amqp.core.MessageProperties;
 
 /**
  * Consumer side of the message pact for the order-projection message (the {@code OrderProjectionMessage}
- * published by {@code OrderChangedEventListener}, consumed by {@link OrderProjectionRabbitListener}) -
+ * written to the outbox by {@code OrderService}, consumed by {@link OrderProjectionRabbitListener}) -
  * same rationale as {@code notification.OrderStatusMessagePactConsumerTest} (see
  * <a href="../../../../../../../../../docs/adr/0005-message-pact-without-broker.md">ADR 0005</a>):
  * describes, from the listener's point of view, the shape it needs to successfully parse, then feeds
