@@ -113,7 +113,7 @@ restart automatically until Keycloak is ready). Get a token and call a protected
 ```bash
 TOKEN=$(docker run --rm --network spring-order-api_default curlimages/curl -sS -X POST \
   http://keycloak:8080/realms/orderapi/protocol/openid-connect/token \
-  -d grant_type=password -d client_id=order-api -d client_secret=order-api-secret \
+  -d grant_type=password -d client_id=order-api -d client_secret=dev-only-not-for-production \
   -d username=demo -d password=demo123 | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/orders/search

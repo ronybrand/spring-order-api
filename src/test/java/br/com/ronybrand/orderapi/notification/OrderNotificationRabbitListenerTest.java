@@ -120,7 +120,7 @@ class OrderNotificationRabbitListenerTest {
     }
 
     @Test
-    void onMessage_ShouldClaimAtomicallyBeforeSending_WithCorrectKeyAndTtl() throws JsonProcessingException {
+    void onMessage_ShouldClaimAtomicallyBeforeSending_WithABoundedLease() throws JsonProcessingException {
         final OrderStatusChangedEvent event = event();
         final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
         final ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
@@ -128,10 +128,38 @@ class OrderNotificationRabbitListenerTest {
         listener.onMessage(message);
 
         verify(emailService, times(1)).sendOrderStatusEmail(any());
-        verify(valueOperations).setIfAbsent(keyCaptor.capture(), eq("1"), eq(Duration.ofHours(24)));
+        verify(valueOperations).setIfAbsent(keyCaptor.capture(), anyString(), eq(Duration.ofMinutes(5)));
         assertThat(keyCaptor.getValue())
                 .contains(event.orderId().toString())
                 .contains(event.newStatus().name());
+    }
+
+    @Test
+    void onMessage_ShouldExtendClaimToTheLongDedupeWindow_AfterSendSucceeds() throws JsonProcessingException {
+        final OrderStatusChangedEvent event = event();
+        final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
+        final ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+
+        listener.onMessage(message);
+
+        verify(valueOperations).set(keyCaptor.capture(), anyString(), eq(Duration.ofHours(24)));
+        assertThat(keyCaptor.getValue())
+                .contains(event.orderId().toString())
+                .contains(event.newStatus().name());
+    }
+
+    @Test
+    void onMessage_ShouldSendAgain_WhenPriorClaimLeaseExpiredWithoutASuccessfulSend() throws JsonProcessingException {
+        final OrderStatusChangedEvent event = event();
+        final Message message = rawMessage(objectMapper.writeValueAsBytes(event));
+        // Simulates the crash scenario: the first attempt claimed the lease and died before
+        // extending it or releasing it, so the lease simply expired in Redis (setIfAbsent
+        // succeeds again on the same key) - a legitimate redelivery must not be swallowed.
+        when(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofMinutes(5)))).thenReturn(true);
+
+        listener.onMessage(message);
+
+        verify(emailService, times(1)).sendOrderStatusEmail(any());
     }
 
     @Test

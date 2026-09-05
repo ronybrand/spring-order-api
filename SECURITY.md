@@ -37,9 +37,14 @@ CodeQL (see badges in [README.md](./README.md)) rather than manual reports.
   see `.github/workflows/dependabot-auto-merge.yml`).
 - Static analysis on every push/PR via [CodeQL](./.github/workflows/codeql.yml) and PMD (hard-fail
   on violation, see `pom.xml`).
-- No secrets committed to the repository - configuration is via environment variables
+- No production secrets committed to the repository - configuration is via environment variables
   (`application.yml` defaults are for local development only, backed by `docker-compose.yml`); see
   [README.md § Configuration & deployment notes](./README.md#configuration--deployment-notes) for
   how this maps to a real deployment.
+  - The one exception is [`keycloak/realm-export.json`](./keycloak/realm-export.json), which
+    provisions a throwaway Keycloak realm for the one-command Docker Compose demo end to end - its
+    `order-api` client secret (`dev-only-not-for-production`, named that way deliberately) has no
+    value outside that disposable container. A real deployment must run its own Keycloak (or other
+    OIDC provider) with a freshly generated client and secret, never this realm export.
 - PII (`taxId`, `passportNumber`, etc.) is masked in logs and `toString()` output - see
   `commons/security/SensitiveDataMasker`.

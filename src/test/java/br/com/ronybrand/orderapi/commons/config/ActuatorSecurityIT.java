@@ -14,9 +14,12 @@ import org.springframework.http.ResponseEntity;
 
 /**
  * {@code /actuator/health} must stay reachable without a Bearer token (container
- * liveness/readiness probes can't present one); everything else exposed
- * (see {@code application.yml}'s {@code management.endpoints.web.exposure.include}), like
- * {@code /actuator/prometheus}, stays behind the same authentication as the rest of the API.
+ * liveness/readiness probes can't present one) - but only its aggregate UP/DOWN status. Everything
+ * that leaks operational detail - component-level health, and {@code /actuator/prometheus} itself
+ * (queue/retry/idempotency/outbox-backlog counters) - is restricted to the {@code ADMIN} role, not
+ * just any authenticated caller: a regular customer-facing API user has no operational need to see
+ * it (see {@code application.yml}'s {@code management.endpoint.health.roles} and this class's
+ * {@code SecurityConfig}).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -41,9 +44,18 @@ class ActuatorSecurityIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
-    void health_ShouldExposeComponentDetail_WhenAuthenticated() {
+    void health_ShouldNotExposeComponentDetail_WhenAuthenticatedAsRegularUser() {
         final ResponseEntity<String> response =
                 restTemplate.exchange("/actuator/health", HttpMethod.GET, request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).doesNotContain("\"components\"");
+    }
+
+    @Test
+    void health_ShouldExposeComponentDetail_WhenAuthenticatedAsAdmin() {
+        final ResponseEntity<String> response =
+                restTemplate.exchange("/actuator/health", HttpMethod.GET, request(authHeadersForAdmin()), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("\"components\"");
@@ -58,9 +70,17 @@ class ActuatorSecurityIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
-    void prometheus_ShouldReturn200_WhenAuthenticated() {
+    void prometheus_ShouldReturn403_WhenAuthenticatedAsRegularUser() {
         final ResponseEntity<String> response =
                 restTemplate.exchange("/actuator/prometheus", HttpMethod.GET, request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void prometheus_ShouldReturn200_WhenAuthenticatedAsAdmin() {
+        final ResponseEntity<String> response =
+                restTemplate.exchange("/actuator/prometheus", HttpMethod.GET, request(authHeadersForAdmin()), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }

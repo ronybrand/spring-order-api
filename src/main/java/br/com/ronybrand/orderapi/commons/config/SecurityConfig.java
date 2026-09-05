@@ -54,10 +54,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Container liveness/readiness probes can't present a Bearer token; only
                         // aggregate UP/DOWN is exposed anonymously (component-level detail
-                        // requires auth - see application.yml's show-details/show-components).
-                        // /actuator/prometheus is NOT listed here - it stays behind the
-                        // anyRequest() rule below, authenticated like everything else.
+                        // requires the ADMIN role - see application.yml's
+                        // management.endpoint.health.roles).
                         .requestMatchers("/actuator/health/**").permitAll()
+                        // Exposes operational detail (queue/retry/idempotency/outbox-backlog
+                        // counters) - restricted to ADMIN, not just any authenticated caller, same
+                        // rationale as the health endpoint's component detail above.
+                        .requestMatchers("/actuator/prometheus").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .headers(this::configureHeaders);

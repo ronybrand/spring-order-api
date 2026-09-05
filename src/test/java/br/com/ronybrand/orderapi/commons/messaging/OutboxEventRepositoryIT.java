@@ -167,14 +167,54 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
         assertThat(repository.countByStatusIn(List.of(OutboxStatus.PUBLISHED))).isEqualTo(1);
     }
 
+    @Test
+    @Transactional
+    void deleteFailedBefore_ShouldDeleteOnlyFailedEventsOlderThanCutoff() {
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        final OutboxEvent oldFailed = repository.save(failedEvent(now.minusDays(100)));
+        final OutboxEvent recentFailed = repository.save(failedEvent(now.minusDays(1)));
+        final OutboxEvent oldPublished = repository.save(publishedEvent(now.minusDays(100)));
+
+        final int deleted = repository.deleteFailedBefore(OutboxStatus.FAILED.name(), now.minusDays(90), 100);
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(repository.findById(oldFailed.getId())).isEmpty();
+        assertThat(repository.findById(recentFailed.getId())).isPresent();
+        assertThat(repository.findById(oldPublished.getId())).isPresent();
+    }
+
+    @Test
+    @Transactional
+    void deleteFailedBefore_ShouldRespectLimit_WhenMoreEligibleRowsThanBatchSize() {
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        repository.save(failedEvent(now.minusDays(100)));
+        repository.save(failedEvent(now.minusDays(100)));
+        repository.save(failedEvent(now.minusDays(100)));
+
+        final int deleted = repository.deleteFailedBefore(OutboxStatus.FAILED.name(), now.minusDays(90), 2);
+
+        assertThat(deleted).isEqualTo(2);
+        assertThat(repository.countByStatusIn(List.of(OutboxStatus.FAILED))).isEqualTo(1);
+    }
+
     private static OutboxEvent publishedEvent(final LocalDateTime publishedAt) {
         final OutboxEvent event = pendingEvent(publishedAt.minusSeconds(1));
         event.markPublished(publishedAt);
         return event;
     }
 
+    /**
+     * Builds the event with {@code createdAt} set to {@code referenceTime} directly - unlike
+     * {@link #pendingEvent}, which always stamps {@code createdAt} with the real wall-clock "now"
+     * regardless of the age its caller asked for. {@code deleteFailedBefore} cuts FAILED rows off
+     * on {@code created_at} (they have no {@code published_at}), so a FAILED test fixture that's
+     * supposed to be "old" must actually have an old {@code createdAt}, not today's.
+     */
     private static OutboxEvent failedEvent(final LocalDateTime referenceTime) {
-        final OutboxEvent event = pendingEvent(referenceTime.minusSeconds(1));
+        final OutboxEvent event = OutboxEvent.builder().id(UUID.randomUUID()).eventType("OrderChangedEvent")
+                .aggregateId(UUID.randomUUID()).exchangeName("orders.exchange").routingKey("orders.changed")
+                .payload("{}").status(OutboxStatus.PENDING).attempts(0)
+                .availableAt(referenceTime.minusSeconds(1)).createdAt(referenceTime.minusSeconds(1)).build();
         for (int i = 0; i < 5; i++) {
             event.markRetry(referenceTime, "boom");
         }
