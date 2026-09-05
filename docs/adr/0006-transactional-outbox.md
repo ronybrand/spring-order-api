@@ -54,8 +54,16 @@ no longer raises events for other components to react to; it writes outbox rows 
 - Publishing is no longer synchronous with the request: an event sits `PENDING` until the next poll
   (`app.outbox.poll-delay-ms`, default 1s) picks it up, trading a small, bounded delivery latency
   for the durability guarantee.
-- Adds one more piece of infrastructure to reason about (the `outbox_events` table and its
-  cleanup/retention, not yet addressed) and a scheduled job's failure mode (a stuck publisher
-  instance, a growing backlog) that needs monitoring - covered by
-  `MessagingMetrics.registerOutboxBacklogGauge` and the `recordOutboxPublished` /
-  `recordOutboxPublishFailure` / `recordOutboxPermanentlyFailed` counters.
+- Adds one more piece of infrastructure to reason about (the `outbox_events` table) and a
+  scheduled job's failure mode (a stuck publisher instance, a growing backlog) that needs
+  monitoring - covered by `MessagingMetrics.registerOutboxBacklogGauge` and the
+  `recordOutboxPublished` / `recordOutboxPublishFailure` / `recordOutboxPermanentlyFailed`
+  counters.
+- `PUBLISHED` rows are not kept forever: a separate `OutboxCleanupJob` runs daily
+  (`app.outbox.cleanup.cron`) and deletes `PUBLISHED` rows older than
+  `app.outbox.cleanup.retention` (default 7 days), in batches of `app.outbox.cleanup.batch-size`
+  rows (`OutboxEventRepository.deletePublishedBefore`, a `DELETE ... LIMIT` via a subquery since
+  Postgres has no native `DELETE ... LIMIT`) so a large backlog is cleaned up without a single
+  long-running delete locking the table. `FAILED` rows are deliberately left out of this job -
+  they need to stay available for manual investigation rather than expiring on the same schedule
+  as successfully published events.
