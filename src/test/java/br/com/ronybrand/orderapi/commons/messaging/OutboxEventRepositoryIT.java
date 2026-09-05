@@ -203,8 +203,18 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
         return event;
     }
 
+    /**
+     * Builds the event with {@code createdAt} set to {@code referenceTime} directly - unlike
+     * {@link #pendingEvent}, which always stamps {@code createdAt} with the real wall-clock "now"
+     * regardless of the age its caller asked for. {@code deleteFailedBefore} cuts FAILED rows off
+     * on {@code created_at} (they have no {@code published_at}), so a FAILED test fixture that's
+     * supposed to be "old" must actually have an old {@code createdAt}, not today's.
+     */
     private static OutboxEvent failedEvent(final LocalDateTime referenceTime) {
-        final OutboxEvent event = pendingEvent(referenceTime.minusSeconds(1));
+        final OutboxEvent event = OutboxEvent.builder().id(UUID.randomUUID()).eventType("OrderChangedEvent")
+                .aggregateId(UUID.randomUUID()).exchangeName("orders.exchange").routingKey("orders.changed")
+                .payload("{}").status(OutboxStatus.PENDING).attempts(0)
+                .availableAt(referenceTime.minusSeconds(1)).createdAt(referenceTime.minusSeconds(1)).build();
         for (int i = 0; i < 5; i++) {
             event.markRetry(referenceTime, "boom");
         }
