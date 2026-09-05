@@ -768,7 +768,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "order-api-secret",
+      "secret": "dev-only-not-for-production",
       "redirectUris": [],
       "webOrigins": [],
       "notBefore": 0,
