@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,6 +33,7 @@ public class OutboxPublisher {
             try {
                 final MessageProperties properties = new MessageProperties();
                 properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+                properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
                 rabbitTemplate.send(event.getExchangeName(), event.getRoutingKey(),
                         new Message(event.getPayload().getBytes(StandardCharsets.UTF_8), properties));
                 outboxService.markPublished(event);

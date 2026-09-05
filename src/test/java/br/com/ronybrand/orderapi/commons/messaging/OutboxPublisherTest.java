@@ -13,7 +13,9 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 class OutboxPublisherTest {
@@ -45,6 +47,18 @@ class OutboxPublisherTest {
         verify(outboxService, never()).markFailed(any(), any());
         verify(messagingMetrics).recordOutboxPublished(claimed.getEventType());
         verify(messagingMetrics, never()).recordOutboxPublishFailure(anyString());
+    }
+
+    @Test
+    void publishPending_ShouldSendAsPersistent_SoARabbitRestartCannotDropAnAlreadyPublishedEvent() {
+        final OutboxEvent claimed = event(OutboxStatus.PROCESSING, 0);
+        when(outboxService.claimBatch()).thenReturn(List.of(claimed));
+
+        publisher.publishPending();
+
+        final ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
+        verify(rabbitTemplate).send(eq(claimed.getExchangeName()), eq(claimed.getRoutingKey()), captor.capture());
+        assertThat(captor.getValue().getMessageProperties().getDeliveryMode()).isEqualTo(MessageDeliveryMode.PERSISTENT);
     }
 
     @Test

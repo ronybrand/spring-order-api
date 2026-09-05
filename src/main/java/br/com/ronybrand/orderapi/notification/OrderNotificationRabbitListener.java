@@ -33,12 +33,22 @@ import org.springframework.stereotype.Component;
  * not a separate check-then-set) taken *before* sending, so two consumers racing on the same key
  * can never both win it. If the send ends up exhausting retries and going to the DLQ, the claim is
  * released so a future reprocessing of that message is never wrongly skipped as "already sent".
+ *
+ * <p>The claim itself is taken with a short, bounded lease ({@link #CLAIM_LEASE_TTL}), then
+ * extended to the full {@link #SENT_TTL} dedupe window only after the send actually succeeds - a
+ * hard crash between the claim and the send (or its release) leaves nothing to explicitly clean
+ * up, but the lease simply expires on its own instead of silently swallowing a legitimate
+ * redelivery for a full day.
  */
 @Slf4j
 @Component
 public class OrderNotificationRabbitListener implements MessageListener {
 
-    private static final Duration IDEMPOTENCY_KEY_TTL = Duration.ofHours(24);
+    /** Bounds the crash window: a claim never released (JVM killed between claim and send) simply
+     * expires on its own, instead of blocking a legitimate redelivery for the full dedupe window.
+     * Matches the outbox's own 5-minute processing-lease reclaim (see OutboxService.claimBatch). */
+    private static final Duration CLAIM_LEASE_TTL = Duration.ofMinutes(5);
+    private static final Duration SENT_TTL = Duration.ofHours(24);
     private static final String LISTENER_NAME = "notification";
 
     private final EmailService emailService;
@@ -68,7 +78,7 @@ public class OrderNotificationRabbitListener implements MessageListener {
 
         final String idempotencyKey = idempotencyKey(event);
         final boolean claimed = Boolean.TRUE.equals(
-                stringRedisTemplate.opsForValue().setIfAbsent(idempotencyKey, "1", IDEMPOTENCY_KEY_TTL));
+                stringRedisTemplate.opsForValue().setIfAbsent(idempotencyKey, "in-flight", CLAIM_LEASE_TTL));
         if (!claimed) {
             log.info("Notification already sent or in flight, skipping: orderId={}", event.orderId());
             messagingMetrics.recordIdempotencySkip(LISTENER_NAME);
@@ -76,6 +86,7 @@ public class OrderNotificationRabbitListener implements MessageListener {
         }
         try {
             sendWithRetry(event);
+            stringRedisTemplate.opsForValue().set(idempotencyKey, "sent", SENT_TTL);
         } catch (final RuntimeException e) {
             stringRedisTemplate.delete(idempotencyKey);
             throw e;
