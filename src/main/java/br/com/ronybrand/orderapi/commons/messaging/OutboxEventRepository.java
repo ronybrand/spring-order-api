@@ -9,12 +9,25 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> {
 
     long countByStatusIn(Collection<OutboxStatus> statuses);
+
+    /**
+     * Deletes at most {@code limit} rows per call (via the {@code LIMIT} subquery below, since
+     * Postgres has no {@code DELETE ... LIMIT} syntax of its own) so a large backlog is cleaned up
+     * in bounded batches instead of one long-running delete locking the table.
+     * {@link OutboxCleanupJob} calls this in a loop until it returns fewer rows than requested.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "delete from outbox_events where id in "
+            + "(select id from outbox_events where status = :status and published_at < :cutoff limit :limit)",
+            nativeQuery = true)
+    int deletePublishedBefore(String status, LocalDateTime cutoff, int limit);
 
     /**
      * {@code PESSIMISTIC_WRITE} plus the Hibernate-specific {@code jakarta.persistence.lock.timeout}

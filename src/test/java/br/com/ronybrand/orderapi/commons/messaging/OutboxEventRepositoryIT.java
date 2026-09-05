@@ -137,6 +137,50 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
         assertThat(claimable).isEmpty();
     }
 
+    @Test
+    @Transactional
+    void deletePublishedBefore_ShouldDeleteOnlyPublishedEventsOlderThanCutoff() {
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        final OutboxEvent oldPublished = repository.save(publishedEvent(now.minusDays(10)));
+        final OutboxEvent recentPublished = repository.save(publishedEvent(now.minusHours(1)));
+        final OutboxEvent oldFailed = repository.save(failedEvent(now.minusDays(10)));
+
+        final int deleted = repository.deletePublishedBefore(OutboxStatus.PUBLISHED.name(), now.minusDays(7), 100);
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(repository.findById(oldPublished.getId())).isEmpty();
+        assertThat(repository.findById(recentPublished.getId())).isPresent();
+        assertThat(repository.findById(oldFailed.getId())).isPresent();
+    }
+
+    @Test
+    @Transactional
+    void deletePublishedBefore_ShouldRespectLimit_WhenMoreEligibleRowsThanBatchSize() {
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        repository.save(publishedEvent(now.minusDays(10)));
+        repository.save(publishedEvent(now.minusDays(10)));
+        repository.save(publishedEvent(now.minusDays(10)));
+
+        final int deleted = repository.deletePublishedBefore(OutboxStatus.PUBLISHED.name(), now.minusDays(7), 2);
+
+        assertThat(deleted).isEqualTo(2);
+        assertThat(repository.countByStatusIn(List.of(OutboxStatus.PUBLISHED))).isEqualTo(1);
+    }
+
+    private static OutboxEvent publishedEvent(final LocalDateTime publishedAt) {
+        final OutboxEvent event = pendingEvent(publishedAt.minusSeconds(1));
+        event.markPublished(publishedAt);
+        return event;
+    }
+
+    private static OutboxEvent failedEvent(final LocalDateTime referenceTime) {
+        final OutboxEvent event = pendingEvent(referenceTime.minusSeconds(1));
+        for (int i = 0; i < 5; i++) {
+            event.markRetry(referenceTime, "boom");
+        }
+        return event;
+    }
+
     private static void awaitUninterruptibly(final CountDownLatch latch) {
         try {
             if (!latch.await(5, TimeUnit.SECONDS)) {

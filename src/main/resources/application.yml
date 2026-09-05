@@ -69,6 +69,13 @@ app:
       trusted-proxies: ${RATE_LIMIT_TRUSTED_PROXIES:}
   notification:
     from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@order-api.dev}
+  outbox:
+    cleanup:
+      # Published rows older than this are deleted daily by OutboxCleanupJob; FAILED rows are
+      # never auto-deleted (see ADR 0006) so they remain available for manual investigation.
+      retention: ${OUTBOX_CLEANUP_RETENTION:7d}
+      cron: ${OUTBOX_CLEANUP_CRON:0 0 3 * * *}
+      batch-size: 500
 
 springdoc:
   api-docs:
