@@ -71,9 +71,12 @@ app:
     from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@order-api.dev}
   outbox:
     cleanup:
-      # Published rows older than this are deleted daily by OutboxCleanupJob; FAILED rows are
-      # never auto-deleted (see ADR 0006) so they remain available for manual investigation.
+      # Published rows older than this are deleted daily by OutboxCleanupJob (see ADR 0006).
       retention: ${OUTBOX_CLEANUP_RETENTION:7d}
+      # FAILED rows get a much longer window - kept around for manual investigation - but are not
+      # exempt from cleanup forever, since their payload carries the same PII exposure (e.g.
+      # customer email/name) as any other outbox row.
+      failed-retention: ${OUTBOX_CLEANUP_FAILED_RETENTION:90d}
       cron: ${OUTBOX_CLEANUP_CRON:0 0 3 * * *}
       batch-size: 500
 

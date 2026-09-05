@@ -167,6 +167,36 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
         assertThat(repository.countByStatusIn(List.of(OutboxStatus.PUBLISHED))).isEqualTo(1);
     }
 
+    @Test
+    @Transactional
+    void deleteFailedBefore_ShouldDeleteOnlyFailedEventsOlderThanCutoff() {
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        final OutboxEvent oldFailed = repository.save(failedEvent(now.minusDays(100)));
+        final OutboxEvent recentFailed = repository.save(failedEvent(now.minusDays(1)));
+        final OutboxEvent oldPublished = repository.save(publishedEvent(now.minusDays(100)));
+
+        final int deleted = repository.deleteFailedBefore(OutboxStatus.FAILED.name(), now.minusDays(90), 100);
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(repository.findById(oldFailed.getId())).isEmpty();
+        assertThat(repository.findById(recentFailed.getId())).isPresent();
+        assertThat(repository.findById(oldPublished.getId())).isPresent();
+    }
+
+    @Test
+    @Transactional
+    void deleteFailedBefore_ShouldRespectLimit_WhenMoreEligibleRowsThanBatchSize() {
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        repository.save(failedEvent(now.minusDays(100)));
+        repository.save(failedEvent(now.minusDays(100)));
+        repository.save(failedEvent(now.minusDays(100)));
+
+        final int deleted = repository.deleteFailedBefore(OutboxStatus.FAILED.name(), now.minusDays(90), 2);
+
+        assertThat(deleted).isEqualTo(2);
+        assertThat(repository.countByStatusIn(List.of(OutboxStatus.FAILED))).isEqualTo(1);
+    }
+
     private static OutboxEvent publishedEvent(final LocalDateTime publishedAt) {
         final OutboxEvent event = pendingEvent(publishedAt.minusSeconds(1));
         event.markPublished(publishedAt);

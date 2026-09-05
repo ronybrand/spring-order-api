@@ -30,6 +30,17 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
     int deletePublishedBefore(String status, LocalDateTime cutoff, int limit);
 
     /**
+     * Same batching contract as {@link #deletePublishedBefore}, but cutting off on {@code created_at}:
+     * {@code FAILED} rows have no {@code published_at} (they never published), so age since creation
+     * is the only timestamp available to bound their (much longer) retention window.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "delete from outbox_events where id in "
+            + "(select id from outbox_events where status = :status and created_at < :cutoff limit :limit)",
+            nativeQuery = true)
+    int deleteFailedBefore(String status, LocalDateTime cutoff, int limit);
+
+    /**
      * {@code PESSIMISTIC_WRITE} plus the Hibernate-specific {@code jakarta.persistence.lock.timeout}
      * hint of {@code -2} (Hibernate's magic value for {@code SKIP LOCKED}, no portable JPA API for
      * it) - required so multiple {@code OutboxPublisher} instances polling concurrently each claim a
