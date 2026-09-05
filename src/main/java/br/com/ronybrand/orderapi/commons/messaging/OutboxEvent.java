@@ -66,6 +66,12 @@ public class OutboxEvent {
         lockedAt = now;
     }
 
+    /**
+     * Nulls {@code lockedAt}/{@code lastError} deliberately, not a code smell PMD's
+     * {@code NullAssignment} rule is built to catch: a published event holds neither a processing
+     * lease nor a stale error from an earlier retry.
+     */
+    @SuppressWarnings("PMD.NullAssignment")
     public void markPublished(final LocalDateTime now) {
         status = OutboxStatus.PUBLISHED;
         publishedAt = now;
@@ -73,6 +79,8 @@ public class OutboxEvent {
         lastError = null;
     }
 
+    /** See {@link #markPublished} - {@code lockedAt} is cleared so the row is claimable again. */
+    @SuppressWarnings("PMD.NullAssignment")
     public void markRetry(final LocalDateTime nextAvailableAt, final String error) {
         attempts++;
         status = attempts >= 5 ? OutboxStatus.FAILED : OutboxStatus.PENDING;

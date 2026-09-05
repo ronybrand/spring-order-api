@@ -7,23 +7,28 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class OutboxService {
 
     private static final int BATCH_SIZE = 50;
     private static final List<OutboxStatus> BACKLOG_STATUSES = List.of(OutboxStatus.PENDING, OutboxStatus.PROCESSING);
 
     private final OutboxEventRepository repository;
-    @Qualifier("orderStatusObjectMapper")
     private final ObjectMapper objectMapper;
     private final MessagingMetrics messagingMetrics;
+
+    public OutboxService(final OutboxEventRepository repository,
+            @Qualifier("orderStatusObjectMapper") final ObjectMapper objectMapper,
+            final MessagingMetrics messagingMetrics) {
+        this.repository = repository;
+        this.objectMapper = objectMapper;
+        this.messagingMetrics = messagingMetrics;
+    }
 
     @PostConstruct
     void registerBacklogGauge() {

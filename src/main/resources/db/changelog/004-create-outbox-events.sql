@@ -2,9 +2,9 @@
 
 --changeset ronybrand:4
 CREATE TABLE outbox_events (
-    id UUID PRIMARY KEY,
+    id CHAR(36) PRIMARY KEY,
     event_type VARCHAR(100) NOT NULL,
-    aggregate_id UUID NOT NULL,
+    aggregate_id CHAR(36) NOT NULL,
     exchange_name VARCHAR(255) NOT NULL,
     routing_key VARCHAR(255) NOT NULL,
     payload TEXT NOT NULL,

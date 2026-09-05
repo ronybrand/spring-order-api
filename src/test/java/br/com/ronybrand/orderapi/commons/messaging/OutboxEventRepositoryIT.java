@@ -24,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -100,6 +101,7 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
+    @Transactional
     void findClaimable_ShouldReclaimExpiredProcessingEvent_AfterLeaseElapses() {
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         final OutboxEvent stuck = repository.save(pendingEvent(now.minusMinutes(10)));
@@ -112,6 +114,7 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
+    @Transactional
     void findClaimable_ShouldNotReturnRecentlyProcessingEvent_WithinItsLease() {
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         final OutboxEvent inFlight = repository.save(pendingEvent(now.minusSeconds(30)));
@@ -124,6 +127,7 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
+    @Transactional
     void findClaimable_ShouldNotReturnPendingEvent_WhoseAvailableAtIsInTheFuture() {
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         repository.save(pendingEvent(now.plusMinutes(1)));
