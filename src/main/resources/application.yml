@@ -69,6 +69,12 @@ app:
       trusted-proxies: ${RATE_LIMIT_TRUSTED_PROXIES:}
   notification:
     from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@order-api.dev}
+  messaging:
+    # Consumers per queue (notification, projection upsert, projection delete). A single consumer
+    # means one message retrying in-process blocks every other queued message behind it for the
+    # same duration - see RabbitMQConfig#orderNotificationContainer and
+    # OrderProjectionConfig#buildContainer for why concurrency > 1 is safe on each queue.
+    consumer-concurrency: ${MESSAGING_CONSUMER_CONCURRENCY:3}
   outbox:
     cleanup:
       # Published rows older than this are deleted daily by OutboxCleanupJob (see ADR 0006).

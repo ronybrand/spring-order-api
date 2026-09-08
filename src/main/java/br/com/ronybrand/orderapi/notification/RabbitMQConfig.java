@@ -11,6 +11,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -93,7 +94,8 @@ public class RabbitMQConfig {
 
     @Bean
     SimpleMessageListenerContainer orderNotificationContainer(final ConnectionFactory connectionFactory,
-            final OrderNotificationRabbitListener listener) {
+            final OrderNotificationRabbitListener listener,
+            @Value("${app.messaging.consumer-concurrency:3}") final int concurrency) {
         final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
         container.setQueueNames(QUEUE);
         container.setMessageListener(listener);
@@ -102,6 +104,14 @@ public class RabbitMQConfig {
         // retry in-process. Any *other* exception escaping it (e.g. an unclassified bug) must still
         // go to the DLQ, not requeue forever on the same message (DOMAIN.md §5).
         container.setDefaultRequeueRejected(false);
+        // A single consumer means one message retrying in-process (up to
+        // NotificationRetryPolicy.MAX_RETRIES backoff steps) blocks every other already-queued
+        // message behind it for the same duration - a transient SMTP blip stalls the whole queue,
+        // not just the one affected message. Each consumer only ever handles one message at a
+        // time, so concurrency > 1 bounds that blast radius without weakening per-message
+        // ordering guarantees this queue never made in the first place (order-status
+        // notifications for different orders have no ordering relationship to each other).
+        container.setConcurrentConsumers(concurrency);
         return container;
     }
 }

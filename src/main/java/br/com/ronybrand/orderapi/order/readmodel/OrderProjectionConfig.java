@@ -12,6 +12,7 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.mongodb.autoconfigure.MongoClientSettingsBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -124,27 +125,38 @@ public class OrderProjectionConfig {
 
     @Bean
     SimpleMessageListenerContainer orderProjectionContainer(final ConnectionFactory connectionFactory,
-            final OrderProjectionRabbitListener listener) {
-        return buildContainer(connectionFactory, QUEUE, listener);
+            final OrderProjectionRabbitListener listener,
+            @Value("${app.messaging.consumer-concurrency:3}") final int concurrency) {
+        return buildContainer(connectionFactory, QUEUE, listener, concurrency);
     }
 
     @Bean
     SimpleMessageListenerContainer orderProjectionDeleteContainer(final ConnectionFactory connectionFactory,
-            final OrderDeletionRabbitListener listener) {
-        return buildContainer(connectionFactory, DELETE_QUEUE, listener);
+            final OrderDeletionRabbitListener listener,
+            @Value("${app.messaging.consumer-concurrency:3}") final int concurrency) {
+        return buildContainer(connectionFactory, DELETE_QUEUE, listener, concurrency);
     }
 
     /**
      * Shared by {@link #orderProjectionContainer} and {@link #orderProjectionDeleteContainer} - any
      * exception escaping a listener's own classification must still go to that queue's DLQ, not
      * requeue forever, same safety net as {@code notification.RabbitMQConfig#orderNotificationContainer}.
+     *
+     * <p>{@code concurrency > 1} is safe here specifically because {@link OrderProjectionService#upsert}
+     * is a single atomic Mongo command conditioned on the tombstone check, not a separate
+     * read-then-write - concurrent consumers racing an upsert against a delete for the same order
+     * id can no longer resurrect a tombstoned view (see {@link OrderProjectionServiceTest} and the
+     * concurrency test in {@code OrderProjectionIT}), same as a single consumer already could
+     * before this change, just with the race window widened from "across polls" to "across
+     * threads" - a window the atomic upsert closes regardless of thread count.
      */
     private SimpleMessageListenerContainer buildContainer(final ConnectionFactory connectionFactory,
-            final String queueName, final MessageListener listener) {
+            final String queueName, final MessageListener listener, final int concurrency) {
         final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
         container.setQueueNames(queueName);
         container.setMessageListener(listener);
         container.setDefaultRequeueRejected(false);
+        container.setConcurrentConsumers(concurrency);
         return container;
     }
 }
