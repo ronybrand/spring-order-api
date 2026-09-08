@@ -2,6 +2,7 @@ package br.com.ronybrand.orderapi.notification;
 
 import br.com.ronybrand.orderapi.commons.messaging.MessageParsing;
 import br.com.ronybrand.orderapi.commons.messaging.MessagingMetrics;
+import br.com.ronybrand.orderapi.commons.messaging.OutboxService;
 import br.com.ronybrand.orderapi.commons.messaging.RetryLoop;
 import br.com.ronybrand.orderapi.order.OrderStatusChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,8 +47,9 @@ public class OrderNotificationRabbitListener implements MessageListener {
 
     /** Bounds the crash window: a claim never released (JVM killed between claim and send) simply
      * expires on its own, instead of blocking a legitimate redelivery for the full dedupe window.
-     * Matches the outbox's own 5-minute processing-lease reclaim (see OutboxService.claimBatch). */
-    private static final Duration CLAIM_LEASE_TTL = Duration.ofMinutes(5);
+     * Deliberately reuses {@link OutboxService#PROCESSING_LEASE} rather than its own literal, so
+     * this lease can never silently drift out of alignment with the outbox's own reclaim window. */
+    private static final Duration CLAIM_LEASE_TTL = OutboxService.PROCESSING_LEASE;
     private static final Duration SENT_TTL = Duration.ofHours(24);
     private static final String LISTENER_NAME = "notification";
 
