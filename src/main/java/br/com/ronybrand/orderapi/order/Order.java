@@ -33,7 +33,6 @@ import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
-import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
@@ -86,7 +85,16 @@ public class Order {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @LastModifiedDate
+    /**
+     * Deliberately not {@code @LastModifiedDate}: that annotation is only populated by Hibernate's
+     * auditing listener when the pending {@code UPDATE} actually executes (flush/commit time), so
+     * reading it right after a mutation - to snapshot it into {@link OrderChangedEvent}, or to
+     * return it in the same request's {@link OrderResponseDto} - required an explicit
+     * {@code entityManager.flush()} first, paying an extra synchronous DB round trip on every
+     * mutating request. {@link OrderService} sets this field directly at the point of mutation
+     * instead (same pattern already used for {@link #deletedAt}), so it is always accurate the
+     * instant it's set, with no dependency on ORM flush timing.
+     */
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 

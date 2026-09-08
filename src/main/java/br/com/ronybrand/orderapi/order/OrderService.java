@@ -75,6 +75,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
                 .toList();
         order.getItems().addAll(items);
         order.calculateTotal();
+        touchUpdatedAt(order);
 
         final Order saved = orderRepository.save(order);
         publishOrderChanged(saved);
@@ -92,6 +93,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         final Order order = findByIdOrThrow(id);
         order.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
         order.setDeletedBy(auditorAware.getCurrentAuditor().orElse(SYSTEM_USER));
+        order.setUpdatedAt(order.getDeletedAt());
         orderRepository.save(order);
         outboxService.enqueue("OrderDeletedEvent", id, OrderProjectionConfig.EXCHANGE,
             OrderProjectionConfig.DELETE_ROUTING_KEY, new OrderDeletedEvent(id));
@@ -111,6 +113,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
                 .build();
         order.getItems().add(item);
         order.calculateTotal();
+        touchUpdatedAt(order);
 
         final Order saved = orderRepository.save(order);
         publishOrderChanged(saved);
@@ -126,6 +129,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         final Item item = findItemOrThrow(order, itemId);
         item.setQuantity(quantity);
         order.calculateTotal();
+        touchUpdatedAt(order);
 
         final Order saved = orderRepository.save(order);
         publishOrderChanged(saved);
@@ -141,6 +145,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
         final Item item = findItemOrThrow(order, itemId);
         order.getItems().remove(item);
         order.calculateTotal();
+        touchUpdatedAt(order);
 
         final Order saved = orderRepository.save(order);
         publishOrderChanged(saved);
@@ -163,6 +168,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
 
         final OrderStatus previousStatus = order.getStatus();
         order.setStatus(OrderStatus.CONFIRMED);
+        touchUpdatedAt(order);
         final Order saved = orderRepository.save(order);
         publishStatusChangedEvent(saved, previousStatus, OrderStatus.CONFIRMED);
         publishOrderChanged(saved);
@@ -185,6 +191,7 @@ public class OrderService implements SearchService<OrderResponseDto> {
 
         final OrderStatus previousStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELED);
+        touchUpdatedAt(order);
         final Order saved = orderRepository.save(order);
         publishStatusChangedEvent(saved, previousStatus, OrderStatus.CANCELED);
         publishOrderChanged(saved);
@@ -201,13 +208,22 @@ public class OrderService implements SearchService<OrderResponseDto> {
     }
 
     /**
-     * Flushes before building the snapshot so {@code updatedAt} ({@code @LastModifiedDate}, only
-     * populated by Hibernate's auditing listener when the pending UPDATE actually executes) is
-     * guaranteed accurate - without this, {@link OrderChangedEvent#from} could capture a stale
-     * value if Hibernate hadn't flushed the change to {@code order} yet.
+     * Sets {@code updatedAt} directly (see {@link Order#updatedAt}'s Javadoc for why it isn't
+     * {@code @LastModifiedDate}) - called before {@code orderRepository.save(order)}, not after:
+     * for a brand-new {@link Order} (see {@link #create}), Hibernate's insert action captures the
+     * entity's field state at {@code persist()} time, so a field set only *after* {@code save()}
+     * (as {@code publishOrderChanged} used to do) is silently lost from the actual {@code INSERT}
+     * - it only reached the in-memory object, not the row. Setting it here, before every
+     * {@code save()} call, works uniformly for both the insert path and the update path (where
+     * Hibernate's dirty-checking re-reads current field values at flush time regardless of when
+     * they were set, so the ordering wouldn't have mattered there - but a single rule that's
+     * correct for both is safer than one that happens to work for updates only).
      */
+    private void touchUpdatedAt(final Order order) {
+        order.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+    }
+
     private void publishOrderChanged(final Order order) {
-        entityManager.flush();
         outboxService.enqueue("OrderChangedEvent", order.getId(), OrderProjectionConfig.EXCHANGE,
             OrderProjectionConfig.ROUTING_KEY, OrderChangedEvent.from(order));
     }

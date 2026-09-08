@@ -10,6 +10,8 @@ import br.com.ronybrand.orderapi.commons.exception.ErrorResponseDto;
 import br.com.ronybrand.orderapi.customer.Customer;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -56,7 +58,8 @@ class OrderControllerIT extends AbstractAuthIntegrationTest {
     }
 
     private Order saveOrder(final OrderStatus status) {
-        return orderRepository.save(Order.builder().customer(customer).status(status).total(BigDecimal.ZERO).build());
+        return orderRepository.save(Order.builder().customer(customer).status(status).total(BigDecimal.ZERO)
+                .updatedAt(LocalDateTime.now(ZoneOffset.UTC)).build());
     }
 
     private Order saveOrderWithOneItem() {

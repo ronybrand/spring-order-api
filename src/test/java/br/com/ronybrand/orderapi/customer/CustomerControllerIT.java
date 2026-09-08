@@ -13,6 +13,8 @@ import br.com.ronybrand.orderapi.order.OrderRepository;
 import br.com.ronybrand.orderapi.order.OrderStatus;
 import br.com.ronybrand.orderapi.order.OrderTestCleanupRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -365,7 +367,8 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
     void delete_ShouldReturn400_WhenCustomerHasActiveOrders() {
         final Customer customer = customerRepository.save(
                 Customer.builder().name("Ada Lovelace").taxId("TAX-0022").email("ada@example.com").build());
-        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO).build());
+        orderRepository.save(Order.builder().customer(customer).status(OrderStatus.OPEN).total(BigDecimal.ZERO)
+                .updatedAt(LocalDateTime.now(ZoneOffset.UTC)).build());
 
         final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/" + customer.getId(), HttpMethod.DELETE,
                 request(authHeadersForAdmin()), ErrorResponseDto.class);
