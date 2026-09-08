@@ -3,8 +3,10 @@ package br.com.ronybrand.orderapi.commons.messaging;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -18,12 +20,21 @@ public class OutboxService {
     private static final int BATCH_SIZE = 50;
     private static final List<OutboxStatus> BACKLOG_STATUSES = List.of(OutboxStatus.PENDING, OutboxStatus.PROCESSING);
 
+    /**
+     * How long a claimed-but-not-yet-published row may stay {@code PROCESSING} before
+     * {@link #claimBatch} reclaims it as abandoned. Exposed as a named constant (not an inline
+     * literal) because {@code notification.OrderNotificationRabbitListener} deliberately mirrors
+     * this exact value for its own Redis claim lease - referencing this constant, rather than
+     * duplicating the duration and relying on a comment to keep the two in sync.
+     */
+    public static final Duration PROCESSING_LEASE = Duration.ofMinutes(5);
+
     private final OutboxEventRepository repository;
     private final ObjectMapper objectMapper;
     private final MessagingMetrics messagingMetrics;
 
     public OutboxService(final OutboxEventRepository repository,
-            @Qualifier("orderStatusObjectMapper") final ObjectMapper objectMapper,
+            @Qualifier("outboxObjectMapper") final ObjectMapper objectMapper,
             final MessagingMetrics messagingMetrics) {
         this.repository = repository;
         this.objectMapper = objectMapper;
@@ -58,9 +69,27 @@ public class OutboxService {
     @Transactional
     List<OutboxEvent> claimBatch() {
         final LocalDateTime now = now();
-        final List<OutboxEvent> events = repository.findClaimable(now, now.minusMinutes(5), PageRequest.of(0, BATCH_SIZE));
-        events.forEach(event -> event.markProcessing(now));
-        return events;
+        final List<OutboxEvent> events =
+                repository.findClaimable(now, now.minus(PROCESSING_LEASE), PageRequest.of(0, BATCH_SIZE));
+        final List<OutboxEvent> claimed = new ArrayList<>(events.size());
+        for (final OutboxEvent event : events) {
+            if (event.getStatus() == OutboxStatus.PROCESSING) {
+                // Reclaiming a row still PROCESSING past its lease: the previous claim never
+                // reached markPublished/markFailed (a crash, or a send throwing something other
+                // than RuntimeException), so this reclaim itself counts as the lost attempt -
+                // otherwise attempts would stay at zero and a catastrophically failing payload
+                // would retry forever, every lease window, without ever reaching FAILED.
+                event.markReclaimed(now);
+                if (event.getStatus() == OutboxStatus.FAILED) {
+                    messagingMetrics.recordOutboxPermanentlyFailed(event.getEventType());
+                    continue;
+                }
+            } else {
+                event.markProcessing(now);
+            }
+            claimed.add(event);
+        }
+        return claimed;
     }
 
     @Transactional
@@ -71,7 +100,7 @@ public class OutboxService {
 
     @Transactional
     void markFailed(final OutboxEvent event, final RuntimeException exception) {
-        event.markRetry(now().plusSeconds(Math.min(60, 1L << Math.min(event.getAttempts(), 6))),
+        event.markRetry(now().plus(OutboxRetryPolicy.nextBackoff(event.getAttempts())),
                 exception.getClass().getSimpleName() + ": " + exception.getMessage());
         repository.save(event);
     }

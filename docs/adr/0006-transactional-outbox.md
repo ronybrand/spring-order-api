@@ -64,6 +64,7 @@ no longer raises events for other components to react to; it writes outbox rows 
   `app.outbox.cleanup.retention` (default 7 days), in batches of `app.outbox.cleanup.batch-size`
   rows (`OutboxEventRepository.deletePublishedBefore`, a `DELETE ... LIMIT` via a subquery since
   Postgres has no native `DELETE ... LIMIT`) so a large backlog is cleaned up without a single
-  long-running delete locking the table. `FAILED` rows are deliberately left out of this job -
-  they need to stay available for manual investigation rather than expiring on the same schedule
-  as successfully published events.
+  long-running delete locking the table. `FAILED` rows get a much longer, separate window
+  (`app.outbox.cleanup.failed-retention`, default 90 days, via `deleteFailedBefore`) instead of the
+  same schedule as `PUBLISHED` rows - long enough to stay available for manual investigation, but
+  not kept forever, since their payload carries the same PII exposure as any other row.

@@ -69,6 +69,12 @@ app:
       trusted-proxies: ${RATE_LIMIT_TRUSTED_PROXIES:}
   notification:
     from-address: ${NOTIFICATION_FROM_ADDRESS:no-reply@order-api.dev}
+  messaging:
+    # Consumers per queue (notification, projection upsert, projection delete). A single consumer
+    # means one message retrying in-process blocks every other queued message behind it for the
+    # same duration - see RabbitMQConfig#orderNotificationContainer and
+    # OrderProjectionConfig#buildContainer for why concurrency > 1 is safe on each queue.
+    consumer-concurrency: ${MESSAGING_CONSUMER_CONCURRENCY:3}
   outbox:
     cleanup:
       # Published rows older than this are deleted daily by OutboxCleanupJob (see ADR 0006).
@@ -78,7 +84,7 @@ app:
       # customer email/name) as any other outbox row.
       failed-retention: ${OUTBOX_CLEANUP_FAILED_RETENTION:90d}
       cron: ${OUTBOX_CLEANUP_CRON:0 0 3 * * *}
-      batch-size: 500
+      batch-size: ${OUTBOX_CLEANUP_BATCH_SIZE:500}
 
 springdoc:
   api-docs:

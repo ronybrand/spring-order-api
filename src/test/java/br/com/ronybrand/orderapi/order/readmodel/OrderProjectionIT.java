@@ -12,6 +12,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -37,6 +44,18 @@ class OrderProjectionIT extends AbstractAuthIntegrationTest {
 
     @Autowired
     private OrderViewRepository orderViewRepository;
+
+    private ExecutorService executor;
+
+    @BeforeEach
+    void setUp() {
+        executor = Executors.newFixedThreadPool(2);
+    }
+
+    @AfterEach
+    void tearDown() {
+        executor.shutdownNow();
+    }
 
     private static OrderProjectionMessage message(final UUID orderId) {
         final OrderProjectionItem item = new OrderProjectionItem(UUID.randomUUID(), "Widget", new BigDecimal("10.00"), 2, new BigDecimal("20.00"));
@@ -85,5 +104,48 @@ class OrderProjectionIT extends AbstractAuthIntegrationTest {
         orderProjectionService.upsert(message(orderId));
 
         assertThatThrownBy(() -> orderProjectionService.findById(orderId)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    /**
+     * {@link OrderProjectionRabbitListener} and {@link OrderDeletionRabbitListener} run on two
+     * independent consumer threads with no ordering guarantee between them (see
+     * {@code OrderProjectionConfig}) - a delete for an order can race a concurrent upsert for the
+     * same id on genuinely separate threads, not just arrive after it as the sequential test above
+     * covers. Fires both operations from a {@link CyclicBarrier} so they start as close to
+     * simultaneously as possible, repeated across many fresh ids to exercise both interleavings
+     * (upsert's Mongo command landing before or after delete's), and asserts the one invariant that
+     * must hold regardless of which thread the server processes first: a tombstoned order is never
+     * resurrected.
+     */
+    @Test
+    void upsert_ShouldNeverResurrectView_WhenRacingConcurrentlyWithDelete() throws Exception {
+        for (int i = 0; i < 30; i++) {
+            final UUID orderId = UUID.randomUUID();
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+
+            final Future<?> upsertRun = executor.submit(() -> {
+                awaitUninterruptibly(barrier);
+                orderProjectionService.upsert(message(orderId));
+            });
+            final Future<?> deleteRun = executor.submit(() -> {
+                awaitUninterruptibly(barrier);
+                orderProjectionService.deleteById(orderId);
+            });
+            upsertRun.get(5, TimeUnit.SECONDS);
+            deleteRun.get(5, TimeUnit.SECONDS);
+
+            assertThatThrownBy(() -> orderProjectionService.findById(orderId))
+                    .as("iteration %d: a delete racing a concurrent upsert must never leave a live (non-tombstoned) view",
+                            i)
+                    .isInstanceOf(ResourceNotFoundException.class);
+        }
+    }
+
+    private static void awaitUninterruptibly(final CyclicBarrier barrier) {
+        try {
+            barrier.await(5, TimeUnit.SECONDS);
+        } catch (final Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

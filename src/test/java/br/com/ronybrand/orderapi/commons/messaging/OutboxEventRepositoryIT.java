@@ -23,6 +23,7 @@ import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRe
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -44,6 +45,9 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private ExecutorService executor;
 
     @BeforeEach
@@ -59,9 +63,8 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
 
     private static OutboxEvent pendingEvent(final LocalDateTime availableAt) {
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        return OutboxEvent.builder().id(UUID.randomUUID()).eventType("OrderChangedEvent")
-                .aggregateId(UUID.randomUUID()).exchangeName("orders.exchange").routingKey("orders.changed")
-                .payload("{}").status(OutboxStatus.PENDING).attempts(0).availableAt(availableAt).createdAt(now)
+        return OutboxEventFixtures.builder()
+                .status(OutboxStatus.PENDING).availableAt(availableAt).createdAt(now)
                 .build();
     }
 
@@ -138,6 +141,14 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
+    void findClaimable_ShouldHaveAPartialIndexCoveringTheProcessingBranch_OnLockedAt() {
+        final String indexDef = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'idx_outbox_events_processing'", String.class);
+
+        assertThat(indexDef).contains("locked_at").contains("WHERE").contains("status").containsIgnoringCase("PROCESSING");
+    }
+
+    @Test
     @Transactional
     void deletePublishedBefore_ShouldDeleteOnlyPublishedEventsOlderThanCutoff() {
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
@@ -211,9 +222,8 @@ class OutboxEventRepositoryIT extends AbstractAuthIntegrationTest {
      * supposed to be "old" must actually have an old {@code createdAt}, not today's.
      */
     private static OutboxEvent failedEvent(final LocalDateTime referenceTime) {
-        final OutboxEvent event = OutboxEvent.builder().id(UUID.randomUUID()).eventType("OrderChangedEvent")
-                .aggregateId(UUID.randomUUID()).exchangeName("orders.exchange").routingKey("orders.changed")
-                .payload("{}").status(OutboxStatus.PENDING).attempts(0)
+        final OutboxEvent event = OutboxEventFixtures.builder()
+                .status(OutboxStatus.PENDING)
                 .availableAt(referenceTime.minusSeconds(1)).createdAt(referenceTime.minusSeconds(1)).build();
         for (int i = 0; i < 5; i++) {
             event.markRetry(referenceTime, "boom");

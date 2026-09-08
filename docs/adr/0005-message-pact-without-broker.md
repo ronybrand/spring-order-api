@@ -4,13 +4,16 @@
 Accepted
 
 ## Context
-The order-status-changed notification message (`OrderStatusChangedEvent` published by
-`OrderStatusEventListener`, consumed by `OrderNotificationRabbitListener`) and the order projection
-message (`OrderChangedEvent` published by `OrderChangedEventListener`, consumed by
-`OrderProjectionRabbitListener`) had no formal guarantee that the published messages matched what
-their consumers expected to parse. They were only implicit conventions shared between classes in
-the same codebase. A change to either side (a renamed field, a different date format) could
+The order-status-changed notification message (`OrderStatusChangedEvent`, consumed by
+`OrderNotificationRabbitListener`) and the order projection message (`OrderChangedEvent`, consumed
+by `OrderProjectionRabbitListener`) had no formal guarantee that the published messages matched
+what their consumers expected to parse. They were only implicit conventions shared between classes
+in the same codebase. A change to either side (a renamed field, a different date format) could
 silently break the other without any test failing.
+
+(Both messages are published by `OutboxService`/`OutboxPublisher` - see ADR 0006 - not by a
+dedicated per-message listener class; this ADR predates that change and originally named
+`OrderStatusEventListener`/`OrderChangedEventListener` as the producers, both since deleted.)
 
 ## Decision
 Consumer-driven contract testing via Pact JVM's **message pacts** (not HTTP pacts - the contracts

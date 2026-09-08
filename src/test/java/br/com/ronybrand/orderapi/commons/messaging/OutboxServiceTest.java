@@ -86,6 +86,34 @@ class OutboxServiceTest {
     }
 
     @Test
+    void claimBatch_ShouldBumpAttempts_WhenReclaimingAStillProcessingEvent() {
+        final OutboxEvent event = OutboxEvent.builder().id(UUID.randomUUID()).status(OutboxStatus.PROCESSING)
+                .attempts(1).build();
+        when(repository.findClaimable(any(), any(), any(Pageable.class))).thenReturn(List.of(event));
+
+        final List<OutboxEvent> claimed = outboxService.claimBatch();
+
+        assertThat(claimed).containsExactly(event);
+        assertThat(event.getStatus()).isEqualTo(OutboxStatus.PROCESSING);
+        assertThat(event.getAttempts()).isEqualTo(2);
+        assertThat(event.getLockedAt()).isNotNull();
+    }
+
+    @Test
+    void claimBatch_ShouldMarkFailed_AndExcludeFromReturnedBatch_WhenReclaimExhaustsAttempts() {
+        final OutboxEvent event = OutboxEvent.builder().id(UUID.randomUUID()).eventType("OrderChangedEvent")
+                .status(OutboxStatus.PROCESSING).attempts(4).build();
+        when(repository.findClaimable(any(), any(), any(Pageable.class))).thenReturn(List.of(event));
+
+        final List<OutboxEvent> claimed = outboxService.claimBatch();
+
+        assertThat(claimed).isEmpty();
+        assertThat(event.getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(event.getAttempts()).isEqualTo(5);
+        verify(messagingMetrics).recordOutboxPermanentlyFailed("OrderChangedEvent");
+    }
+
+    @Test
     void markPublished_ShouldMarkEventPublished_AndPersistIt() {
         final OutboxEvent event = OutboxEvent.builder().id(UUID.randomUUID()).status(OutboxStatus.PROCESSING)
                 .attempts(0).build();

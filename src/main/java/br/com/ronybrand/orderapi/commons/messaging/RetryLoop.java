@@ -10,6 +10,11 @@ import org.springframework.amqp.AmqpRejectAndDontRequeueException;
  * without requeue). Each listener still owns its own retry policy values and log wording - only the
  * mechanical part (easy to subtly diverge when copy-pasted, e.g. an off-by-one on the attempt
  * count or a missed {@code Thread.currentThread().interrupt()}) is centralized here.
+ *
+ * <p>Not used by the outbox's own retry (see {@link OutboxService#markFailed} /
+ * {@link OutboxRetryPolicy}): that one schedules a future poll instead of sleeping a thread, a
+ * different enough mechanic and time scale that it is named and kept separate rather than forced
+ * through this loop.
  */
 public final class RetryLoop {
 

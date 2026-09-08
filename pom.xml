@@ -194,8 +194,8 @@
 			<scope>test</scope>
 		</dependency>
 		<!-- Consumer-driven contract testing (message pact) for the order-status-changed
-			 notification message, produced by OrderStatusEventListener and consumed by
-			 OrderNotificationRabbitListener. -->
+			 notification message, produced by OutboxService/OutboxPublisher (see ADR 0006) and
+			 consumed by OrderNotificationRabbitListener. -->
 		<dependency>
 			<groupId>au.com.dius.pact.consumer</groupId>
 			<artifactId>junit5</artifactId>

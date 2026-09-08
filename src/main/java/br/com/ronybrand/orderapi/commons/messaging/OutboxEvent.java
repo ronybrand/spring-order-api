@@ -21,6 +21,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "outbox_events")
 public class OutboxEvent {
 
+    private static final int MAX_ATTEMPTS = 5;
+
     @Id
     private UUID id;
 
@@ -64,6 +66,27 @@ public class OutboxEvent {
     public void markProcessing(final LocalDateTime now) {
         status = OutboxStatus.PROCESSING;
         lockedAt = now;
+    }
+
+    /**
+     * Called instead of {@link #markProcessing} when {@code OutboxEventRepository#findClaimable}
+     * reclaims a row still {@code PROCESSING} past its lease: the previous claim died before ever
+     * reaching {@link #markPublished} or {@link #markRetry} (a hard crash, or a broker send
+     * throwing something other than {@code RuntimeException}), so nothing bumped {@code attempts}
+     * for that lost attempt. Counting the reclaim itself here is what lets a catastrophically
+     * failing payload still reach the {@code FAILED} attempts cap, instead of being reclaimed and
+     * retried forever every lease window with {@code attempts} stuck at zero.
+     */
+    @SuppressWarnings("PMD.NullAssignment")
+    public void markReclaimed(final LocalDateTime now) {
+        attempts++;
+        if (attempts >= MAX_ATTEMPTS) {
+            status = OutboxStatus.FAILED;
+            lockedAt = null;
+        } else {
+            status = OutboxStatus.PROCESSING;
+            lockedAt = now;
+        }
     }
 
     /**

@@ -18,6 +18,8 @@ import br.com.ronybrand.orderapi.customer.Customer;
 import br.com.ronybrand.orderapi.customer.CustomerRepository;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -44,6 +46,12 @@ class OrderServiceTest {
 
     private void verifyOrderChangedEnqueued() {
         verify(outboxService).enqueue(eq("OrderChangedEvent"), any(), any(), any(), any());
+    }
+
+    private OrderChangedEvent capturedOrderChangedEvent() {
+        final ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(outboxService).enqueue(eq("OrderChangedEvent"), any(), any(), any(), captor.capture());
+        return (OrderChangedEvent) captor.getValue();
     }
 
     @Test
@@ -122,6 +130,21 @@ class OrderServiceTest {
     }
 
     @Test
+    void create_ShouldSetUpdatedAt_WithoutRelyingOnAnEntityManagerFlush() {
+        final UUID customerId = UUID.randomUUID();
+        final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
+        when(customerRepository.findByIdForShare(customerId)).thenReturn(Optional.of(customer));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        final LocalDateTime before = LocalDateTime.now(ZoneOffset.UTC);
+
+        final OrderResponseDto result = service.create(customerId, List.of());
+
+        assertThat(result.updatedAt()).isNotNull().isAfterOrEqualTo(before);
+        assertThat(capturedOrderChangedEvent().updatedAt()).isEqualTo(result.updatedAt());
+        verify(entityManager, never()).flush();
+    }
+
+    @Test
     void findById_ShouldReturnOrderResponseDto_WhenExists() {
         final UUID customerId = UUID.randomUUID();
         final Customer customer = Customer.builder().id(customerId).name("Ada Lovelace").taxId("TAX-1").email("ada@example.com").build();
@@ -156,6 +179,7 @@ class OrderServiceTest {
 
         assertThat(order.getDeletedAt()).isNotNull();
         assertThat(order.getDeletedBy()).isEqualTo("some-user");
+        assertThat(order.getUpdatedAt()).isNotNull();
         verify(orderRepository).save(order);
         verify(outboxService).enqueue(eq("OrderDeletedEvent"), eq(orderId), any(), any(), eq(new OrderDeletedEvent(orderId)));
     }
@@ -318,6 +342,20 @@ class OrderServiceTest {
         final OrderResponseDto result = service.confirm(order.getId());
 
         assertThat(result.status()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    void confirm_ShouldSetUpdatedAt_WithoutRelyingOnAnEntityManagerFlush() {
+        final Item existingItem = Item.builder().id(UUID.randomUUID()).description("Widget").unitPrice(new BigDecimal("10.00")).quantity(1).build();
+        final Order order = openOrderWith(existingItem);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        final LocalDateTime before = LocalDateTime.now(ZoneOffset.UTC);
+
+        final OrderResponseDto result = service.confirm(order.getId());
+
+        assertThat(result.updatedAt()).isNotNull().isAfterOrEqualTo(before);
+        verify(entityManager, never()).flush();
     }
 
     @Test
