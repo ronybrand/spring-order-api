@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.amqp.core.Message;
@@ -26,13 +25,11 @@ class OutboxPublisherTest {
     private final OutboxPublisher publisher = new OutboxPublisher(outboxService, rabbitTemplate, messagingMetrics);
 
     private static OutboxEvent event(final OutboxStatus status, final int attempts) {
-        return event(status, attempts, "orders.changed");
+        return event(status, attempts, OutboxEventFixtures.ROUTING_KEY);
     }
 
     private static OutboxEvent event(final OutboxStatus status, final int attempts, final String routingKey) {
-        return OutboxEvent.builder().id(UUID.randomUUID()).eventType("OrderChangedEvent")
-                .aggregateId(UUID.randomUUID()).exchangeName("orders.exchange").routingKey(routingKey)
-                .payload("{}").status(status).attempts(attempts).build();
+        return OutboxEventFixtures.builder().routingKey(routingKey).status(status).attempts(attempts).build();
     }
 
     @Test
