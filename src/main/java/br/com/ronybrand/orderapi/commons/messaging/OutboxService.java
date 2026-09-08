@@ -100,7 +100,7 @@ public class OutboxService {
 
     @Transactional
     void markFailed(final OutboxEvent event, final RuntimeException exception) {
-        event.markRetry(now().plusSeconds(Math.min(60, 1L << Math.min(event.getAttempts(), 6))),
+        event.markRetry(now().plus(OutboxRetryPolicy.nextBackoff(event.getAttempts())),
                 exception.getClass().getSimpleName() + ": " + exception.getMessage());
         repository.save(event);
     }
