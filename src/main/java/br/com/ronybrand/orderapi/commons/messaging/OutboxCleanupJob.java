@@ -33,6 +33,13 @@ public class OutboxCleanupJob {
             @Value("${app.outbox.cleanup.retention:7d}") final Duration retention,
             @Value("${app.outbox.cleanup.failed-retention:90d}") final Duration failedRetention,
             @Value("${app.outbox.cleanup.batch-size:500}") final int batchSize) {
+        // deleteInBatches loops "while the last batch came back exactly batch-size" - a
+        // batch-size of zero (or negative, meaningless as a LIMIT) would make every batch
+        // trivially "full", spinning the scheduled cleanup thread forever. Failing fast here, at
+        // construction, surfaces a bad config value at startup instead of as a stuck cron job.
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException("app.outbox.cleanup.batch-size must be positive, was " + batchSize);
+        }
         this.repository = repository;
         this.retention = retention;
         this.failedRetention = failedRetention;

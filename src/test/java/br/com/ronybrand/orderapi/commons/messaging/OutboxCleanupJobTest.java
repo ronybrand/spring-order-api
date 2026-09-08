@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.commons.messaging;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -64,6 +65,18 @@ class OutboxCleanupJobTest {
 
         verify(repository, times(2)).deleteFailedBefore(eq(OutboxStatus.FAILED.name()), any(LocalDateTime.class),
                 eq(BATCH_SIZE));
+    }
+
+    @Test
+    void constructor_ShouldRejectZeroBatchSize_ToAvoidAnInfiniteCleanupLoop() {
+        assertThatThrownBy(() -> new OutboxCleanupJob(repository, Duration.ofDays(7), Duration.ofDays(90), 0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void constructor_ShouldRejectNegativeBatchSize() {
+        assertThatThrownBy(() -> new OutboxCleanupJob(repository, Duration.ofDays(7), Duration.ofDays(90), -1))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

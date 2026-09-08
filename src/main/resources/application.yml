@@ -78,7 +78,7 @@ app:
       # customer email/name) as any other outbox row.
       failed-retention: ${OUTBOX_CLEANUP_FAILED_RETENTION:90d}
       cron: ${OUTBOX_CLEANUP_CRON:0 0 3 * * *}
-      batch-size: 500
+      batch-size: ${OUTBOX_CLEANUP_BATCH_SIZE:500}
 
 springdoc:
   api-docs:
