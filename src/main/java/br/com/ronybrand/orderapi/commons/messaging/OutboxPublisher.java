@@ -16,6 +16,16 @@ import org.springframework.stereotype.Component;
  * RabbitMQ - an event is only ever marked {@code PUBLISHED} after the broker send itself succeeds,
  * so a crash between claim and send just leaves it {@code PROCESSING} for another instance's lease
  * to reclaim later, never silently lost.
+ *
+ * <p>Deliberately one broker send plus one DB commit per event (via {@link OutboxService#markPublished}/
+ * {@link OutboxService#markFailed}), not a single batched commit for the whole claimed batch - at
+ * this app's scale (default batch size 50, 1s poll) that overhead is not a measured bottleneck, and
+ * per-event commits keep each event's outcome independent and immediately visible (no
+ * partially-applied batch to reason about if the process dies mid-loop). If outbox throughput ever
+ * does become a real bottleneck, batch the successful outcomes into one bulk
+ * {@code UPDATE ... WHERE id IN (...)} (status/published_at) after the send loop instead of N
+ * individual saves - failures still need per-event handling (distinct backoff/error text), so only
+ * the success path is a candidate for batching.
  */
 @Slf4j
 @Component
