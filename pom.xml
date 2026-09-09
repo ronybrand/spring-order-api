@@ -20,9 +20,11 @@
 	<description>Order API do Rony Reinehr Brand - gestao de pedidos (Customer/Order/Item)</description>
 	<properties>
 		<java.version>25</java.version>
-		<!-- Explicit pin: the version managed by spring-boot-starter-parent:4.1.0 (2.21.4) does not
-			 resolve right now (metadata unavailable on repo.maven.apache.org). -->
-		<jackson-2-bom.version>2.21.1</jackson-2-bom.version>
+		<!-- O pin antigo em 2.21.1 existia porque 2.21.4 nao resolvia (metadata indisponivel em
+			 repo.maven.apache.org) - confirmado que isso ja nao acontece mais. 2.22.0 tambem fecha a
+			 divergencia do requireUpperBoundDeps com springdoc/swagger-core-jakarta, que ja exige
+			 jackson-datatype-jsr310/jackson-dataformat-yaml nessa versao. -->
+		<jackson-2-bom.version>2.22.0</jackson-2-bom.version>
 		<!-- Single source of truth for the byte-buddy-agent javaagent path, referenced by both
 			 Surefire and Failsafe below - keeps the two argLine declarations from drifting apart. -->
 		<byteBuddyAgent.path>${project.build.directory}/byte-buddy-agent.jar</byteBuddyAgent.path>
@@ -212,8 +214,45 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+	<dependencyManagement>
+		<dependencies>
+			<!-- spring-boot-dependencies:4.1.1 manages amqp-client at 5.30.0, mas spring-rabbit
+				 (tambem gerenciado pelo mesmo BOM) ja depende de 5.31.0 - gap do proprio BOM upstream.
+				 Pin explicito so pra alinhar com o que spring-rabbit ja pede, sem ir alem do que o
+				 Spring Boot testou. -->
+			<dependency>
+				<groupId>com.rabbitmq</groupId>
+				<artifactId>amqp-client</artifactId>
+				<version>5.31.0</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<build>
 		<plugins>
+			<!-- Pega downgrade silencioso de dependencia transitiva vs. o que o dependencyManagement
+				 (proprio ou herdado do spring-boot-dependencies) declara - ver os pins de
+				 jackson-2-bom.version e amqp-client acima, ambos fechados por essa regra antes dela
+				 ser adicionada aqui. dependencyConvergence (a regra classica) NAO foi usada: da falso
+				 positivo pra dependencia gerenciada via BOM (commons-collections4/commons-text), que
+				 requireUpperBoundDeps entende corretamente. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<version>3.6.3</version>
+				<executions>
+					<execution>
+						<id>enforce-upper-bound-deps</id>
+						<goals>
+							<goal>enforce</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<requireUpperBoundDeps/>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
