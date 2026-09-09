@@ -23,6 +23,9 @@
 		<!-- Explicit pin: the version managed by spring-boot-starter-parent:4.1.0 (2.21.4) does not
 			 resolve right now (metadata unavailable on repo.maven.apache.org). -->
 		<jackson-2-bom.version>2.21.1</jackson-2-bom.version>
+		<!-- Single source of truth for the byte-buddy-agent javaagent path, referenced by both
+			 Surefire and Failsafe below - keeps the two argLine declarations from drifting apart. -->
+		<byteBuddyAgent.path>${project.build.directory}/byte-buddy-agent.jar</byteBuddyAgent.path>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -260,6 +263,7 @@
 									<outputDirectory>${project.build.directory}</outputDirectory>
 								</artifactItem>
 							</artifactItems>
+							<!-- destFileName above must match the filename in byteBuddyAgent.path. -->
 						</configuration>
 					</execution>
 				</executions>
@@ -272,7 +276,7 @@
 					<excludes>
 						<exclude>**/*PactProviderTest.java</exclude>
 					</excludes>
-					<argLine>@{argLine} -Xmx768m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
+					<argLine>@{argLine} -Xmx768m -javaagent:${byteBuddyAgent.path} -Djava.net.preferIPv4Stack=true</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -284,7 +288,7 @@
 						<include>**/*IT.java</include>
 						<include>**/*PactProviderTest.java</include>
 					</includes>
-					<argLine>@{argLine} -Xmx1536m -javaagent:${project.build.directory}/byte-buddy-agent.jar -Djava.net.preferIPv4Stack=true</argLine>
+					<argLine>@{argLine} -Xmx1536m -javaagent:${byteBuddyAgent.path} -Djava.net.preferIPv4Stack=true</argLine>
 				</configuration>
 				<executions>
 					<execution>
