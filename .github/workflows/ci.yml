@@ -19,7 +19,20 @@ jobs:
       # pair for the notification queue), *IT (Testcontainers spins up Postgres via Docker,
       # available natively on GitHub-hosted Linux runners), the JaCoCo coverage gate
       # (80% line / 65% branch minimum) and PMD (hard-fail on violation).
+      #
+      # OpenApiSpecExportIT (one of the *IT tests above) also drops a snapshot of the OpenAPI
+      # spec at target/openapi/openapi.json, hitting /v3/api-docs on the same full context/
+      # Testcontainers already up for the rest of the suite - no live deployment of this app
+      # exists to browse Swagger on (springdoc stays disabled outside the dev profile - see
+      # SwaggerDisabledByDefaultTest), so this build-time snapshot is what the `pages` job below
+      # publishes.
       - run: ./mvnw -B verify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: target/openapi/openapi.json
+          if-no-files-found: error
+          retention-days: 7
 
   docker-build:
     needs: verify
@@ -46,3 +59,33 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Publishes a static snapshot of the OpenAPI spec (see the comment on `verify` above) as a
+  # Redoc page - the only way to see the API's shape without cloning the repo and running
+  # `docker compose up`. Push-only (a fork's PR run has no Pages write access, and a preview
+  # per-PR isn't worth the extra complexity for a docs page). The `github-pages` environment
+  # name/permissions here are GitHub's own required contract for actions/deploy-pages, unrelated
+  # to (and unaffected by) the AWS-OIDC `environment:` issue hit on the angular_estado deploy.
+  pages:
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: openapi-spec
+          path: site
+      - run: cp docs/api-docs/index.html site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
+        id: deployment
