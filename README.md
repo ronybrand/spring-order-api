@@ -3,6 +3,8 @@
 [![CI](https://github.com/ronybrand/spring-order-api/actions/workflows/ci.yml/badge.svg)](https://github.com/ronybrand/spring-order-api/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/ronybrand/spring-order-api/actions/workflows/codeql.yml/badge.svg)](https://github.com/ronybrand/spring-order-api/actions/workflows/codeql.yml)
 
+[API docs](https://ronybrand.github.io/spring-order-api)
+
 Order management API (Customer / Order / Item) in Spring Boot, specified in
 [`DOMAIN.md`](./DOMAIN.md) and built as complete use cases per resource, following the
 conventions documented in `AGENTS.md` and the `spring-feature` skill (local, not versioned - see
