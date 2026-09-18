@@ -30,12 +30,20 @@ jobs:
       - name: Simulate next Dependabot batch and run requireUpperBoundDeps
         id: check
         run: |
-          set +e
+          # -e stays on for the bump itself: if versions:use-latest-releases fails (network,
+          # plugin resolution, ...), the step must fail loudly, not silently fall through to
+          # validating an unmodified pom.xml and reporting a false "no gap needed" - that would
+          # mean the one command that actually tests anything here never ran.
           ./mvnw -q -B versions:use-latest-releases -DallowMajorUpdates=false -DgenerateBackupPoms=false \
             -Dincludes=org.springdoc:springdoc-openapi-starter-webmvc-ui,org.apache.commons:commons-collections4,org.testcontainers:testcontainers-rabbitmq,au.com.dius.pact.consumer:junit5,au.com.dius.pact.provider:junit5,com.rabbitmq:amqp-client
           git diff --stat pom.xml > pom-diff.txt
+          # validate is *expected* to fail sometimes (that's the whole point) - only this one
+          # command's exit status is captured instead of disabling -e for the whole step.
+          set +e
           ./mvnw -B validate > enforcer-output.txt 2>&1
-          echo "status=$?" >> "$GITHUB_OUTPUT"
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Build report
         id: report
@@ -55,7 +63,17 @@ jobs:
           EOF
           )
           else
+            # Prefer the specific requireUpperBoundDeps message; fall back to any [ERROR] line,
+            # then to the raw tail, so a failure from something else entirely (a different
+            # enforcer rule, a plugin/build error) still shows *something* diagnostic instead of
+            # an empty code block.
             errors=$(grep -A2 "^\[ERROR\] Require upper bound" enforcer-output.txt | head -60)
+            if [ -z "$errors" ]; then
+              errors=$(grep "^\[ERROR\]" enforcer-output.txt | head -60)
+            fi
+            if [ -z "$errors" ]; then
+              errors=$(tail -60 enforcer-output.txt)
+            fi
             body=$(cat <<EOF
           Simulated bumping every explicitly-versioned Maven dependency (the ones Dependabot's
           weekly-batch group tracks) to its latest non-major release and \`requireUpperBoundDeps\`
