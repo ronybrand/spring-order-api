@@ -1,0 +1,93 @@
+name: Check pinned dependency headroom
+
+# Simulates the next Dependabot batch (bumping every explicitly-versioned dependency this
+# project's dependabot.yml tracks to its latest non-major release, same as the weekly-batch
+# group would) and runs requireUpperBoundDeps against it - catching a pinned-property gap
+# (jackson-2-bom.version, netty.version, ...) a week before Dependabot's own PR would hit it,
+# so the fix (see README.md "If a Dependabot PR fails on requireUpperBoundDeps") can land ahead
+# of time instead of blocking that PR. Never commits anything itself - pom.xml is reverted at
+# the end of the job either way.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday - a day ahead of Dependabot's own weekly run
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Simulate next Dependabot batch and run requireUpperBoundDeps
+        id: check
+        run: |
+          set +e
+          ./mvnw -q -B versions:use-latest-releases -DallowMajorUpdates=false -DgenerateBackupPoms=false \
+            -Dincludes=org.springdoc:springdoc-openapi-starter-webmvc-ui,org.apache.commons:commons-collections4,org.testcontainers:testcontainers-rabbitmq,au.com.dius.pact.consumer:junit5,au.com.dius.pact.provider:junit5,com.rabbitmq:amqp-client
+          git diff --stat pom.xml > pom-diff.txt
+          ./mvnw -B validate > enforcer-output.txt 2>&1
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Build report
+        id: report
+        env:
+          STATUS: ${{ steps.check.outputs.status }}
+        run: |
+          simulated=$(cat pom-diff.txt)
+          if [ "$STATUS" = "0" ]; then
+            body=$(cat <<EOF
+          Simulated bumping every explicitly-versioned Maven dependency (the ones Dependabot's
+          weekly-batch group tracks) to its latest non-major release and ran
+          \`requireUpperBoundDeps\` - still passes. No pinned property needs updating yet.
+
+          \`\`\`
+          ${simulated:-(no updates available)}
+          \`\`\`
+          EOF
+          )
+          else
+            errors=$(grep -A2 "^\[ERROR\] Require upper bound" enforcer-output.txt | head -60)
+            body=$(cat <<EOF
+          Simulated bumping every explicitly-versioned Maven dependency (the ones Dependabot's
+          weekly-batch group tracks) to its latest non-major release and \`requireUpperBoundDeps\`
+          **failed** - the next real Dependabot batch will likely hit this too:
+
+          \`\`\`
+          $errors
+          \`\`\`
+
+          Bump the named pinned property/\`dependencyManagement\` entry in \`pom.xml\` ahead of
+          time, in its own small PR against \`main\` - see the README's "If a Dependabot PR fails
+          on requireUpperBoundDeps" runbook for the exact steps.
+          EOF
+          )
+          fi
+          echo "body<<BODYEOF" >> "$GITHUB_OUTPUT"
+          echo "$body" >> "$GITHUB_OUTPUT"
+          echo "BODYEOF" >> "$GITHUB_OUTPUT"
+
+      - name: Revert the simulated bump
+        run: git checkout -- pom.xml
+
+      - name: Open or update tracking issue
+        if: steps.check.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          BODY: ${{ steps.report.outputs.body }}
+        run: |
+          existing=$(gh issue list --search "Pinned dependency headroom check in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$BODY"
+          else
+            gh issue create --title "Pinned dependency headroom check" --body "$BODY" --label "dependencies"
+          fi
