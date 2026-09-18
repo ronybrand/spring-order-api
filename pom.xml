@@ -21,7 +21,7 @@
 	<properties>
 		<java.version>25</java.version>
 		<!-- O pin antigo em 2.21.1 existia porque 2.21.4 nao resolvia (metadata indisponivel em
-			 repo.maven.apache.org) - confirmado que isso ja nao acontece mais. Bumped de 2.22.0 para
+			 repo.maven.apache.org) - confirmado que isso ja nao acontece mais. Bumped de 2.21.1 para
 			 2.22.1 porque springdoc-openapi 3.1.1 traz swagger-core-jakarta 2.2.55, que ja exige
 			 jackson-datatype-jsr310/jackson-dataformat-yaml/jackson-databind nessa versao -
 			 requireUpperBoundDeps falha sem isso (mesmo tipo de divergencia que motivou o pin original). -->
