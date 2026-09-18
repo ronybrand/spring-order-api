@@ -103,7 +103,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           BODY: ${{ steps.report.outputs.body }}
         run: |
-          existing=$(gh issue list --search "Pinned dependency headroom check in:title" --state open --json number --jq '.[0].number')
+          existing=$(gh issue list --search "Pinned dependency headroom check in:title" --state open --json number --jq '.[0].number // ""')
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$BODY"
           else
