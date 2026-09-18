@@ -21,10 +21,11 @@
 	<properties>
 		<java.version>25</java.version>
 		<!-- O pin antigo em 2.21.1 existia porque 2.21.4 nao resolvia (metadata indisponivel em
-			 repo.maven.apache.org) - confirmado que isso ja nao acontece mais. 2.22.0 tambem fecha a
-			 divergencia do requireUpperBoundDeps com springdoc/swagger-core-jakarta, que ja exige
-			 jackson-datatype-jsr310/jackson-dataformat-yaml nessa versao. -->
-		<jackson-2-bom.version>2.22.0</jackson-2-bom.version>
+			 repo.maven.apache.org) - confirmado que isso ja nao acontece mais. Bumped de 2.22.0 para
+			 2.22.1 porque springdoc-openapi 3.1.1 traz swagger-core-jakarta 2.2.55, que ja exige
+			 jackson-datatype-jsr310/jackson-dataformat-yaml/jackson-databind nessa versao -
+			 requireUpperBoundDeps falha sem isso (mesmo tipo de divergencia que motivou o pin original). -->
+		<jackson-2-bom.version>2.22.1</jackson-2-bom.version>
 		<!-- Single source of truth for the byte-buddy-agent javaagent path, referenced by both
 			 Surefire and Failsafe below - keeps the two argLine declarations from drifting apart. -->
 		<byteBuddyAgent.path>${project.build.directory}/byte-buddy-agent.jar</byteBuddyAgent.path>
