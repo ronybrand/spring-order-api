@@ -238,6 +238,12 @@ The enforcer's error output names the exact artifact and the version it needed
 4. Repeat if the enforcer reports a *different* artifact after rebasing - a single Dependabot bump
    can surface more than one gap one at a time, since `verify` stops at the first failure.
 
+A weekly [`dependency-headroom-check`](.github/workflows/dependency-headroom-check.yml) job runs
+this same scenario proactively - it simulates bumping every explicitly-versioned dependency to its
+latest non-major release and runs the enforcer, a day ahead of Dependabot's own weekly run. If that
+would fail, it opens/updates a "Pinned dependency headroom check" issue with the exact error, so
+step 1-2 above can happen *before* the real PR shows up blocked.
+
 ## Sensitive data
 
 Fields classified as PII (e.g. `Customer.taxId`, `Customer.passportNumber`, `Customer.email`)
