@@ -73,8 +73,9 @@ A second, purely technical outbox event - `OrderChangedEvent`, unconditional, un
 business-gated `OrderStatusChangedEvent` above - is enqueued from every mutating `OrderService`
 method except `delete` (create, item changes, confirm, cancel), carrying a full snapshot of the
 order (built from the same managed entity `OrderService` just saved, inside the original
-transaction - no re-fetch, though it does force an early flush so `updatedAt` is accurate; see
-`OrderService.publishOrderChanged`). `OutboxPublisher` sends that snapshot onto its own RabbitMQ
+transaction - no re-fetch; `updatedAt` is set explicitly in application code, not via
+`@LastModifiedDate`, so it's accurate immediately with no extra flush - see
+`OrderService.touchUpdatedAt`). `OutboxPublisher` sends that snapshot onto its own RabbitMQ
 exchange/queue, isolated from the notification topology. `OrderProjectionRabbitListener` upserts it
 into MongoDB as an `OrderView` document - denormalized, `@Version`-free (last-write-wins is an
 accepted trade-off for a disposable projection), served back through `GET /orders/{id}/view`.
@@ -213,6 +214,29 @@ by listener tests; the full transient SMTP-to-Mailpit path is not currently exer
 CI also runs **CodeQL** static analysis on every PR and weekly on `main`
 (`.github/workflows/codeql.yml`), and **Dependabot** keeps Maven and GitHub Actions dependencies
 current via weekly grouped PRs (`.github/dependabot.yml`).
+
+### If a Dependabot PR fails on `requireUpperBoundDeps`
+
+`pom.xml` pins a few transitive versions explicitly (`jackson-2-bom.version`, `netty.version`,
+the `amqp-client` `dependencyManagement` entry) to close gaps between what
+`spring-boot-dependencies` manages and what another dependency actually requires - see the
+comments next to each pin for which one and why. A Dependabot bump can reopen one of these gaps:
+it raises a dependency (e.g. `springdoc-openapi`, `amqp-client`) whose own transitive requirement
+now sits *above* one of these pins, and `enforce-upper-bound-deps` (added in #28) fails the
+`verify` job to catch it before it becomes a silent downgrade.
+
+The enforcer's error output names the exact artifact and the version it needed
+(`... <-- com.fasterxml.jackson.core:jackson-databind:2.22.1`). To fix it:
+
+1. Find which pinned property (or `dependencyManagement` entry) manages that artifact.
+2. Bump it to at least the version the enforcer reported, in a small standalone PR against `main`
+   (**not** by editing the Dependabot branch directly - it can keep rebasing safely that way).
+   Bumping ahead of the Dependabot PR landing is safe: if nothing on the current dependency tree
+   needs the higher pin yet, it's a no-op until that PR merges.
+3. Merge that PR, then update/rebase the Dependabot PR (`gh api repos/OWNER/REPO/pulls/NUMBER/update-branch -X PUT`,
+   or comment `@dependabot rebase` on it) so it rebuilds against the fix.
+4. Repeat if the enforcer reports a *different* artifact after rebasing - a single Dependabot bump
+   can surface more than one gap one at a time, since `verify` stops at the first failure.
 
 ## Sensitive data
 
