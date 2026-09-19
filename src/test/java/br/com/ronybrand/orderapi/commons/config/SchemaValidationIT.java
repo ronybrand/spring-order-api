@@ -20,6 +20,7 @@ import org.springframework.test.context.TestPropertySource;
  * - with {@code ddl-auto=validate} overridden just for this test class. Hibernate validates the
  * mapped schema against the actual database at {@code EntityManagerFactory} creation and throws
  * {@code SchemaManagementException} on any mismatch; a successful context load is the assertion.
+ * See ADR 0007 for why this runs only here, never against production.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
