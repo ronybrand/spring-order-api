@@ -9,3 +9,4 @@ alternatives discarded, and consequences (including the ones left deliberately u
 - [0004 — Fail startup on an empty CORS allowed-origins list](0004-cors-fail-fast-on-empty-allowed-origins.md)
 - [0005 — Message pacts (Pact JVM) for RabbitMQ flows, no Pact Broker](0005-message-pact-without-broker.md)
 - [0006 — Transactional outbox instead of publishing from Spring application events](0006-transactional-outbox.md)
+- [0007 — hibernate.ddl-auto=validate only in tests, never in production](0007-ddl-auto-validate-only-in-test.md)
