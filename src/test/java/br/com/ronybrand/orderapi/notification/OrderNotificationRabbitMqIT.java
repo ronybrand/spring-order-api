@@ -19,6 +19,7 @@ import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -30,12 +31,22 @@ import org.springframework.context.annotation.Import;
  * a transient SMTP failure is retried before rejection.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "spring.rabbitmq.listener.simple.auto-startup=true")
+    properties = {
+        "spring.rabbitmq.listener.simple.auto-startup=true",
+        // Unique per-class queue/DLQ names (see RabbitMQConfig's javadoc) so this class's real
+        // listener container can never consume/dead-letter a message left over from - or destined
+        // for - another *IT's context sharing the same static RabbitMQContainer broker.
+        "app.messaging.notification-queue=order.status.notifications.queue.OrderNotificationRabbitMqIT",
+        "app.messaging.notification-dead-letter-queue=order.status.notifications.dlq.OrderNotificationRabbitMqIT"
+    })
 @AutoConfigureTestRestTemplate
 @Import(TestSecurityConfig.class)
 class OrderNotificationRabbitMqIT extends AbstractAuthIntegrationTest {
 
     private static final byte[] MALFORMED_PAYLOAD = "not-json".getBytes(StandardCharsets.UTF_8);
+
+    @Value("${app.messaging.notification-dead-letter-queue}")
+    private String deadLetterQueueName;
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
@@ -48,7 +59,7 @@ class OrderNotificationRabbitMqIT extends AbstractAuthIntegrationTest {
 
     @BeforeEach
     void purgeDeadLetterQueue() {
-        rabbitAdmin.purgeQueue(RabbitMQConfig.DEAD_LETTER_QUEUE, true);
+        rabbitAdmin.purgeQueue(deadLetterQueueName, true);
     }
 
     @Test
@@ -56,7 +67,7 @@ class OrderNotificationRabbitMqIT extends AbstractAuthIntegrationTest {
         rabbitTemplate.send(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY,
                 new Message(MALFORMED_PAYLOAD, new MessageProperties()));
 
-        final Message deadLetter = rabbitTemplate.receive(RabbitMQConfig.DEAD_LETTER_QUEUE, 10_000);
+        final Message deadLetter = rabbitTemplate.receive(deadLetterQueueName, 10_000);
 
         assertThat(deadLetter).isNotNull();
         assertThat(deadLetter.getBody()).isEqualTo(MALFORMED_PAYLOAD);
@@ -73,7 +84,7 @@ class OrderNotificationRabbitMqIT extends AbstractAuthIntegrationTest {
 
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, event);
 
-        final Message deadLetter = rabbitTemplate.receive(RabbitMQConfig.DEAD_LETTER_QUEUE, 15_000);
+        final Message deadLetter = rabbitTemplate.receive(deadLetterQueueName, 15_000);
 
         assertThat(deadLetter).isNotNull();
         assertThat(deadLetter.getBody()).contains(orderId.toString().getBytes(StandardCharsets.UTF_8));

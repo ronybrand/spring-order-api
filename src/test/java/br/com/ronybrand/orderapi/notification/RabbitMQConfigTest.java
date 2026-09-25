@@ -16,7 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
  */
 class RabbitMQConfigTest {
 
-    private final RabbitMQConfig config = new RabbitMQConfig();
+    private final RabbitMQConfig config = new RabbitMQConfig(RabbitMQConfig.QUEUE, RabbitMQConfig.DEAD_LETTER_QUEUE);
 
     @Test
     void orderNotificationContainer_ShouldUseTheConfiguredConcurrency() {
