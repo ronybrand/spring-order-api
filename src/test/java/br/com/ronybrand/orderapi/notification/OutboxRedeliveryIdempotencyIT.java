@@ -43,7 +43,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * consumer) collapses a redelivery into a single side effect, not just the listener in isolation.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = {"spring.rabbitmq.listener.simple.auto-startup=true", "app.outbox.poll-delay-ms=3600000"})
+    properties = {
+        "spring.rabbitmq.listener.simple.auto-startup=true",
+        "app.outbox.poll-delay-ms=3600000",
+        // Unique per-class queue/DLQ names (see RabbitMQConfig's javadoc) so this class's real
+        // listener/mock can never receive a message left over from - or destined for - another
+        // *IT's context sharing the same static RabbitMQContainer broker.
+        "app.messaging.notification-queue=order.status.notifications.queue.OutboxRedeliveryIdempotencyIT",
+        "app.messaging.notification-dead-letter-queue=order.status.notifications.dlq.OutboxRedeliveryIdempotencyIT"
+    })
 @AutoConfigureTestRestTemplate
 @Import(TestSecurityConfig.class)
 class OutboxRedeliveryIdempotencyIT extends AbstractAuthIntegrationTest {

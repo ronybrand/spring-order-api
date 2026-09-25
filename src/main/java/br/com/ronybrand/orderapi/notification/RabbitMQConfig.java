@@ -34,6 +34,25 @@ public class RabbitMQConfig {
     public static final String QUEUE = "order.status.notifications.queue";
     public static final String DEAD_LETTER_QUEUE = "order.status.notifications.dlq";
 
+    private final String queueName;
+    private final String deadLetterQueueName;
+
+    /**
+     * Queue/DLQ names are injectable (defaulting to the production literals above) so each
+     * {@code *IT} class that starts its own real listener can bind to a queue/DLQ unique to its
+     * own {@code ApplicationContext} instead of the fixed production name. Every {@code *IT} still
+     * shares the same static {@code RabbitMQContainer} broker (see
+     * {@code AbstractAuthIntegrationTest}) for speed; without this, two contexts' listener
+     * containers briefly overlapping during a JUnit context switch could both consume from the
+     * same durable queue, letting one test's retries/DLQ deliveries bleed into another's
+     * assertions or mocks.
+     */
+    public RabbitMQConfig(@Value("${app.messaging.notification-queue:" + QUEUE + "}") final String queueName,
+            @Value("${app.messaging.notification-dead-letter-queue:" + DEAD_LETTER_QUEUE + "}") final String deadLetterQueueName) {
+        this.queueName = queueName;
+        this.deadLetterQueueName = deadLetterQueueName;
+    }
+
     @Bean
     DirectExchange ordersExchange() {
         return new DirectExchange(EXCHANGE, true, false);
@@ -46,15 +65,18 @@ public class RabbitMQConfig {
 
     @Bean
     Queue orderStatusNotificationsQueue() {
-        return QueueBuilder.durable(QUEUE)
+        // The dead-letter routing key is the queue's own (unique) name, not the shared
+        // ROUTING_KEY - otherwise every *IT's DLQ, all bound to the same DLX with the same
+        // ROUTING_KEY, would each receive a copy of every other context's dead-lettered message.
+        return QueueBuilder.durable(queueName)
                 .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
-                .withArgument("x-dead-letter-routing-key", ROUTING_KEY)
+                .withArgument("x-dead-letter-routing-key", queueName)
                 .build();
     }
 
     @Bean
     Queue orderStatusNotificationsDeadLetterQueue() {
-        return QueueBuilder.durable(DEAD_LETTER_QUEUE).build();
+        return QueueBuilder.durable(deadLetterQueueName).build();
     }
 
     @Bean
@@ -64,7 +86,7 @@ public class RabbitMQConfig {
 
     @Bean
     Binding orderStatusNotificationsDeadLetterBinding() {
-        return BindingBuilder.bind(orderStatusNotificationsDeadLetterQueue()).to(ordersDeadLetterExchange()).with(ROUTING_KEY);
+        return BindingBuilder.bind(orderStatusNotificationsDeadLetterQueue()).to(ordersDeadLetterExchange()).with(queueName);
     }
 
     @Bean
@@ -97,7 +119,7 @@ public class RabbitMQConfig {
             final OrderNotificationRabbitListener listener,
             @Value("${app.messaging.consumer-concurrency:3}") final int concurrency) {
         final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
-        container.setQueueNames(QUEUE);
+        container.setQueueNames(queueName);
         container.setMessageListener(listener);
         // Safety net: the listener always classifies its own exceptions into
         // AmqpRejectAndDontRequeueException (retry-exhausted/malformed) or lets EmailSendingException
