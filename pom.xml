@@ -25,7 +25,20 @@
 			 2.22.1 porque springdoc-openapi 3.1.1 traz swagger-core-jakarta 2.2.55, que ja exige
 			 jackson-datatype-jsr310/jackson-dataformat-yaml/jackson-databind nessa versao -
 			 requireUpperBoundDeps falha sem isso (mesmo tipo de divergencia que motivou o pin original). -->
-		<jackson-2-bom.version>2.22.1</jackson-2-bom.version>
+		<!-- Dependabot alerts #14/#17/#18/#20: jackson-databind/jackson-core 2.22.0-2.22.2 have
+			 several high-severity issues (quadratic forward-reference completion, unbounded raw-type-ID
+			 retention, unbounded XMLGregorianCalendar number parse, missing maxErrorTokenLength limit) -
+			 fixed in 2.22.3. -->
+		<jackson-2-bom.version>2.22.3</jackson-2-bom.version>
+		<!-- Spring Boot 4.1.1 pulls Jackson 3 (tools.jackson.core) transitively via
+			 spring-boot-starter-jackson, pinned at 3.1.5 by spring-boot-dependencies - same CVE family as
+			 jackson-2-bom.version above (Dependabot alerts #15/#16/#19/#21), fixed in 3.1.7. Overrides the
+			 inherited spring-boot-dependencies property the same way jackson-2-bom.version does. -->
+		<jackson-bom.version>3.1.7</jackson-bom.version>
+		<!-- Dependabot alerts #3/#4/#5 (critical): Tomcat's embedded FORM/DIGEST authenticators and
+			 access-control checks in 11.0.0-M1..11.0.24 have authentication-bypass issues, fixed in
+			 11.0.25. Overrides spring-boot-dependencies' own tomcat.version property. -->
+		<tomcat.version>11.0.26</tomcat.version>
 		<!-- Pending Dependabot bump of the amqp-client dependencyManagement pin (see PR #29) needs
 			 5.36.0, whose own POM requires netty-codec/netty-handler 4.2.18.Final - above the
 			 4.2.17.Final spring-boot-dependencies manages via this same property. Bumped ahead of
@@ -232,6 +245,29 @@
 				<groupId>com.rabbitmq</groupId>
 				<artifactId>amqp-client</artifactId>
 				<version>5.36.0</version>
+			</dependency>
+			<!-- BouncyCastle (bcprov/bcpkix-jdk18on) comes transitively from pact-jvm's junit5 modules
+				 above, test-scoped only - not managed by any property in spring-boot-dependencies, unlike
+				 jackson-2-bom.version/jackson-bom.version/tomcat.version above. Dependabot alerts
+				 #1/#2/#6/#7: bcprov/bcpkix-jdk18on below 1.84/1.85 have an LDAP injection, a Name
+				 Constraints bypass via trailing dot in rfc822Name/URI, a lazy ASN.1 sequence nesting-depth
+				 guard bypass, and a broken/risky crypto algorithm - fixed in 1.84/1.85. Pinned together
+				 with bcutil-jdk18on (not itself alerted, but released in lockstep with the other two -
+				 keeping it on the same train avoids a silent 1.81.1-vs-1.86 split). -->
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcprov-jdk18on</artifactId>
+				<version>1.86</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcpkix-jdk18on</artifactId>
+				<version>1.86</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcutil-jdk18on</artifactId>
+				<version>1.86</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
