@@ -23,6 +23,7 @@ public enum ErrorCode {
     VALIDATION_INVALID_FILTER_VALUE("VALIDATION-09", "Invalid filter value"),
     VALIDATION_INVALID_SORT_FIELD("VALIDATION-10", "Invalid sort field"),
     VALIDATION_CONSTRAINT_VIOLATION("VALIDATION-11", "Field validation violation"),
+    VALIDATION_PAYLOAD_TOO_LARGE("VALIDATION-12", "Request body too large"),
 
     RESOURCE_NOT_FOUND_CUSTOMER("RESOURCE-NOT-FOUND-01", "Customer not found"),
     RESOURCE_NOT_FOUND_ORDER("RESOURCE-NOT-FOUND-02", "Order not found"),

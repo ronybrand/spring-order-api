@@ -1,5 +1,7 @@
 package br.com.ronybrand.orderapi.commons.exception;
 
+import br.com.ronybrand.orderapi.commons.config.RequestBodyTooLargeException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import br.com.ronybrand.orderapi.commons.config.RequestIdFilter;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -67,6 +69,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponseDto> handleOptimisticLocking(final ObjectOptimisticLockingFailureException ex) {
         log.warn("Optimistic locking conflict - entity: {}, id: {}", ex.getPersistentClassName(), ex.getIdentifier());
         return build(HttpStatus.CONFLICT, ErrorCode.CONFLICT_CONCURRENT_MODIFICATION, null);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponseDto> handleNotReadable(final HttpMessageNotReadableException ex) {
+        // A body cut off by LimitedBodyRequest surfaces here wrapped in Spring's own I/O error.
+        for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof RequestBodyTooLargeException) {
+                return build(HttpStatus.CONTENT_TOO_LARGE, ErrorCode.VALIDATION_PAYLOAD_TOO_LARGE, null);
+            }
+        }
+        // Malformed JSON used to fall into the catch-all below and answer 500.
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_CONSTRAINT_VIOLATION, "Malformed request body", null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

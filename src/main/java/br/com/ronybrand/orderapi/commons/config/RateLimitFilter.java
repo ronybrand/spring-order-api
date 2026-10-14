@@ -1,6 +1,5 @@
 package br.com.ronybrand.orderapi.commons.config;
 
-import org.slf4j.MDC;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -23,7 +22,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Fixed-window rate limit, partitioned by the caller's IP. The counter lives in a Caffeine
+ * Fixed-window rate limit, partitioned by the caller's IP. This is the coarse ceiling that runs before
+ * authentication (floods, anonymous and unauthenticated traffic); the per-user limit that actually shapes
+ * authenticated traffic is {@link UserRateLimitFilter}. The counter lives in a Caffeine
  * {@code Cache} (not a plain {@code Map}) to bound the memory used by distinct IPs over the
  * application's lifetime: each entry expires on its own at the end of the window, restarting the
  * count. Documented as single-instance only - does not coordinate the limit across replicas.
@@ -47,7 +48,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final Cache<String, AtomicInteger> counters;
 
     public RateLimitFilter(
-            @Value("${app.security.rate-limit.max-requests-per-window}") final int maxRequestsPerWindow,
+            @Value("${app.security.rate-limit.ip-max-requests-per-window}") final int maxRequestsPerWindow,
             @Value("${app.security.rate-limit.window-seconds}") final long windowSeconds,
             @Value("${app.security.rate-limit.trusted-proxies:}") final String trustedProxiesCsv) {
         this.maxRequestsPerWindow = maxRequestsPerWindow;
@@ -79,10 +80,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         final String key = resolveClientKey(request);
         final int count = counters.asMap().computeIfAbsent(key, k -> new AtomicInteger()).incrementAndGet();
         if (count > maxRequestsPerWindow) {
-            response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setHeader(RETRY_AFTER_HEADER, String.valueOf(windowSeconds));
-            response.setContentType("application/json");
-            response.getWriter().write(errorBody());
+            JsonErrorWriter.write(response, HttpStatus.TOO_MANY_REQUESTS, ErrorCode.RATE_LIMIT_EXCEEDED);
             return;
         }
         filterChain.doFilter(request, response);
@@ -93,15 +92,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static boolean isHealthProbe(final HttpServletRequest request) {
         final String uri = request.getRequestURI();
         return uri != null && uri.startsWith(request.getContextPath() + HEALTH_PATH);
-    }
-
-    // Same {message, code, params, requestId} contract as every other error; the request id was
-    // put in the MDC by RequestIdFilter, which runs before this filter.
-    private static String errorBody() {
-        final String requestId = MDC.get(RequestIdFilter.MDC_KEY);
-        return "{\"message\":\"" + ErrorCode.RATE_LIMIT_EXCEEDED.getDescription() + "\",\"code\":\""
-                + ErrorCode.RATE_LIMIT_EXCEEDED.getCode() + "\",\"params\":{},\"requestId\":"
-                + (requestId == null ? "null" : "\"" + requestId + "\"") + "}";
     }
 
     private String resolveClientKey(final HttpServletRequest request) {

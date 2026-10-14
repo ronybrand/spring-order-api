@@ -1,5 +1,6 @@
 package br.com.ronybrand.orderapi.commons.config;
 
+import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,7 +15,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Rejects, before the body reaches Jackson/Bean Validation, any request whose declared
- * {@code Content-Length} exceeds {@code app.security.max-request-size-bytes}. Defense in depth on
+ * {@code Content-Length} exceeds {@code app.security.max-request-size-bytes}, and cuts off a body that passes
+ * the limit while being read when it declared no length at all ({@link LimitedBodyRequest}). Defense in depth on
  * top of Tomcat's own limit (max-http-form-post-size): produces an explicit 413 earlier, without
  * depending on a generic container error.
  */
@@ -33,9 +35,10 @@ public class MaxRequestSizeFilter extends OncePerRequestFilter {
             final FilterChain filterChain) throws ServletException, IOException {
         final long contentLength = request.getContentLengthLong();
         if (contentLength > maxRequestSizeBytes) {
-            response.sendError(HttpStatus.CONTENT_TOO_LARGE.value(), "Request body exceeds the maximum allowed size");
+            JsonErrorWriter.write(response, HttpStatus.CONTENT_TOO_LARGE, ErrorCode.VALIDATION_PAYLOAD_TOO_LARGE);
             return;
         }
-        filterChain.doFilter(request, response);
+        // No Content-Length (chunked upload) cannot be judged from the header: count the bytes as they are read.
+        filterChain.doFilter(new LimitedBodyRequest(request, maxRequestSizeBytes), response);
     }
 }
