@@ -1,8 +1,5 @@
 package br.com.ronybrand.orderapi.commons.filter;
 
-import java.lang.reflect.Member;
-import java.lang.reflect.AnnotatedElement;
-import br.com.ronybrand.orderapi.commons.security.Sensitive;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import jakarta.persistence.metamodel.Attribute;
@@ -71,15 +68,6 @@ public final class SearchUtils {
     }
 
     /**
-     * A field annotated {@code @Sensitive} (PII) is never searchable: a filter or sort on it is an
-     * oracle ({@code lk}/{@code gte} reveal the value one character at a time) even when the
-     * response omits it.
-     */
-    public static boolean isSensitive(final Member member) {
-        return member instanceof AnnotatedElement element && element.isAnnotationPresent(Sensitive.class);
-    }
-
-    /**
      * {@code order=field} (ascending) or {@code order=-field} (descending). Always appends
      * {@code id} as a stable tiebreaker unless already sorting by it, so pagination stays
      * consistent across pages when the primary sort field has duplicate values.
@@ -100,8 +88,7 @@ public final class SearchUtils {
         try {
             final EntityType<?> entityType = metamodel.entity(entityClass);
             final Attribute<?, ?> attribute = entityType.getAttribute(field);
-            if (attribute.getPersistentAttributeType() != Attribute.PersistentAttributeType.BASIC
-                    || isSensitive(attribute.getJavaMember())) {
+            if (attribute.getPersistentAttributeType() != Attribute.PersistentAttributeType.BASIC) {
                 throw new InvalidInputException("Invalid sort field: " + field, ErrorCode.VALIDATION_INVALID_SORT_FIELD);
             }
         } catch (final IllegalArgumentException e) {

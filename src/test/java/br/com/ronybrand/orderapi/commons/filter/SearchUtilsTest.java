@@ -2,7 +2,6 @@ package br.com.ronybrand.orderapi.commons.filter;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
-import br.com.ronybrand.orderapi.customer.Customer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -67,13 +66,6 @@ class SearchUtilsTest {
         final Pageable pageable = SearchUtils.buildPageable(-5, 20, 100, Sort.by("id"));
 
         assertThat(pageable.getPageNumber()).isZero();
-    }
-
-    @Test
-    void isSensitive_ShouldBeTrue_ForFieldsAnnotatedWithSensitive() throws NoSuchFieldException {
-        assertThat(SearchUtils.isSensitive(Customer.class.getDeclaredField("taxId"))).isTrue();
-        assertThat(SearchUtils.isSensitive(Customer.class.getDeclaredField("email"))).isTrue();
-        assertThat(SearchUtils.isSensitive(Customer.class.getDeclaredField("name"))).isFalse();
     }
 
     @Test

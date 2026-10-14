@@ -209,25 +209,16 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
     }
 
     @Test
-    void search_ShouldNotExposeSensitiveFields_AndShouldIgnoreFiltersOnThem() {
+    void search_ShouldFindByTaxId_WithoutExposingIt() {
         customerRepository.save(Customer.builder().name("Grace Hopper").taxId("TAX-0114").email("grace@example.com").build());
         customerRepository.save(Customer.builder().name("Edsger Dijkstra").taxId("TAX-0115").email("edsger@example.com").build());
 
-        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[taxId][lk]=0114", HttpMethod.GET,
+        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[taxId]=TAX-0114", HttpMethod.GET,
                 request(authHeadersForUser()), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).contains("Grace Hopper").contains("Edsger Dijkstra")
+        assertThat(response.getBody()).contains("Grace Hopper").doesNotContain("Edsger Dijkstra")
                 .doesNotContain("TAX-0114").doesNotContain("grace@example.com");
-    }
-
-    @Test
-    void search_ShouldReturn400_WhenSortingBySensitiveField() {
-        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/search?order=taxId", HttpMethod.GET,
-                request(authHeadersForUser()), ErrorResponseDto.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_INVALID_SORT_FIELD.getCode());
     }
 
     @Test
