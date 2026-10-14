@@ -1,5 +1,8 @@
 package br.com.ronybrand.orderapi.commons.filter;
 
+import java.lang.reflect.Member;
+import java.lang.reflect.AnnotatedElement;
+import br.com.ronybrand.orderapi.commons.security.Sensitive;
 import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import jakarta.persistence.metamodel.Attribute;
@@ -26,6 +29,11 @@ public final class SearchUtils {
     private static final Pattern FILTER_PARAM_PATTERN = Pattern.compile("^filter\\[([^]]+)](?:\\[([^]]+)])?$");
     private static final String ID_FIELD = "id";
 
+    /** Structural ceilings of the query string: one request must not carry hundreds of predicates. */
+    public static final int MAX_FILTER_FIELDS = 10;
+    public static final int MAX_VALUES_PER_FIELD = 10;
+    public static final int MAX_VALUE_LENGTH = 200;
+
     private SearchUtils() {
     }
 
@@ -49,8 +57,26 @@ public final class SearchUtils {
             for (final String rawValue : entry.getValue()) {
                 values.add(prefix + rawValue);
             }
+            ensureWithinLimits(filters, values, entry.getValue());
         }
         return filters;
+    }
+
+    private static void ensureWithinLimits(final Map<String, List<String>> filters, final List<String> values,
+            final List<String> rawValues) {
+        if (filters.size() > MAX_FILTER_FIELDS || values.size() > MAX_VALUES_PER_FIELD
+                || rawValues.stream().anyMatch(rawValue -> rawValue.length() > MAX_VALUE_LENGTH)) {
+            throw new InvalidInputException("Search filters exceed the allowed limits", ErrorCode.VALIDATION_INVALID_FILTER_VALUE);
+        }
+    }
+
+    /**
+     * A field annotated {@code @Sensitive} (PII) is never searchable: a filter or sort on it is an
+     * oracle ({@code lk}/{@code gte} reveal the value one character at a time) even when the
+     * response omits it.
+     */
+    public static boolean isSensitive(final Member member) {
+        return member instanceof AnnotatedElement element && element.isAnnotationPresent(Sensitive.class);
     }
 
     /**
@@ -74,7 +100,8 @@ public final class SearchUtils {
         try {
             final EntityType<?> entityType = metamodel.entity(entityClass);
             final Attribute<?, ?> attribute = entityType.getAttribute(field);
-            if (attribute.getPersistentAttributeType() != Attribute.PersistentAttributeType.BASIC) {
+            if (attribute.getPersistentAttributeType() != Attribute.PersistentAttributeType.BASIC
+                    || isSensitive(attribute.getJavaMember())) {
                 throw new InvalidInputException("Invalid sort field: " + field, ErrorCode.VALIDATION_INVALID_SORT_FIELD);
             }
         } catch (final IllegalArgumentException e) {

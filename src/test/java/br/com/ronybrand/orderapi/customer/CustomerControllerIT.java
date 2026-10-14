@@ -201,11 +201,33 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
         customerRepository.save(Customer.builder().name("Ada Lovelace").taxId("TAX-0014").email("ada@example.com").build());
         customerRepository.save(Customer.builder().name("Alan Turing").taxId("TAX-0015").email("alan@example.com").build());
 
-        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[taxId]=TAX-0014", HttpMethod.GET,
+        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[name]=Ada Lovelace", HttpMethod.GET,
                 request(authHeadersForUser()), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).contains("TAX-0014").doesNotContain("TAX-0015");
+        assertThat(response.getBody()).contains("Ada Lovelace").doesNotContain("Alan Turing");
+    }
+
+    @Test
+    void search_ShouldNotExposeSensitiveFields_AndShouldIgnoreFiltersOnThem() {
+        customerRepository.save(Customer.builder().name("Grace Hopper").taxId("TAX-0114").email("grace@example.com").build());
+        customerRepository.save(Customer.builder().name("Edsger Dijkstra").taxId("TAX-0115").email("edsger@example.com").build());
+
+        final ResponseEntity<String> response = restTemplate.exchange("/customers/search?filter[taxId][lk]=0114", HttpMethod.GET,
+                request(authHeadersForUser()), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("Grace Hopper").contains("Edsger Dijkstra")
+                .doesNotContain("TAX-0114").doesNotContain("grace@example.com");
+    }
+
+    @Test
+    void search_ShouldReturn400_WhenSortingBySensitiveField() {
+        final ResponseEntity<ErrorResponseDto> response = restTemplate.exchange("/customers/search?order=taxId", HttpMethod.GET,
+                request(authHeadersForUser()), ErrorResponseDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_INVALID_SORT_FIELD.getCode());
     }
 
     @Test

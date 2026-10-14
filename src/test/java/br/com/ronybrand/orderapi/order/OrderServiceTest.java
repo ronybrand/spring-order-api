@@ -218,6 +218,24 @@ class OrderServiceTest {
     }
 
     @Test
+    void addItem_ShouldThrowInvalidInputException_WhenOrderAlreadyHasMaxItems() {
+        final Item[] existing = new Item[OrderCreateRequestDto.MAX_ITEMS];
+        for (int i = 0; i < existing.length; i++) {
+            existing[i] = Item.builder().id(UUID.randomUUID()).description("x").unitPrice(new BigDecimal("1.00")).quantity(1).build();
+        }
+        final Order order = openOrderWith(existing);
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        final UUID orderId = order.getId();
+        final ItemRequestDto newItem = item("Widget", "10.00", 1);
+
+        assertThatThrownBy(() -> service.addItem(orderId, newItem))
+                .isInstanceOf(InvalidInputException.class)
+                .satisfies(ex -> assertThat(((InvalidInputException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_CONSTRAINT_VIOLATION));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
     void addItem_ShouldEnqueueOrderChangedEvent_WhenSucceeds() {
         final Order order = openOrderWith();
         when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));

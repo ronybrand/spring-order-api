@@ -104,6 +104,10 @@ public class OrderService implements SearchService<OrderResponseDto> {
     OrderResponseDto addItem(@NotNull final UUID orderId, @NotNull final ItemRequestDto itemRequest) {
         final Order order = findByIdOrThrow(orderId);
         ensureEditable(order);
+        if (order.getItems().size() >= OrderCreateRequestDto.MAX_ITEMS) {
+            throw new InvalidInputException("An order can have at most " + OrderCreateRequestDto.MAX_ITEMS + " items",
+                    ErrorCode.VALIDATION_CONSTRAINT_VIOLATION);
+        }
 
         final Item item = Item.builder()
                 .order(order)

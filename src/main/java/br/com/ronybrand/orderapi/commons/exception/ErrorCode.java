@@ -33,6 +33,9 @@ public enum ErrorCode {
     CONFLICT_DATA_INTEGRITY_VIOLATION("CONFLICT-02", "Data integrity violation"),
 
     AUTHORIZATION_ACCESS_DENIED("AUTHORIZATION-01", "Access denied"),
+
+    RATE_LIMIT_EXCEEDED("RATE-00", "Rate limit exceeded"),
+
     INTERNAL_ERROR("INTERNAL-ERROR", "Unexpected internal error");
 
     private final String code;

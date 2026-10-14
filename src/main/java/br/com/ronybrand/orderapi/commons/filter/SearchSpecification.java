@@ -53,7 +53,8 @@ public final class SearchSpecification {
     private static Class<?> resolveFilterableType(final Root<?> root, final String field) {
         try {
             final Attribute<?, ?> attribute = root.getModel().getAttribute(field);
-            if (attribute.getPersistentAttributeType() != Attribute.PersistentAttributeType.BASIC) {
+            if (attribute.getPersistentAttributeType() != Attribute.PersistentAttributeType.BASIC
+                    || SearchUtils.isSensitive(attribute.getJavaMember())) {
                 return null;
             }
             return attribute.getJavaType();
