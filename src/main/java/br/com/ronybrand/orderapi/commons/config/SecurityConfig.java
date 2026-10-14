@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -47,7 +48,10 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(final HttpSecurity http, final CorsConfigurationSource corsConfigurationSource,
-            final JwtAuthenticationConverter jwtAuthenticationConverter) {
+            final JwtAuthenticationConverter jwtAuthenticationConverter,
+            @Value("${app.security.rate-limit.max-requests-per-window}") final int maxRequestsPerWindow,
+            @Value("${app.security.rate-limit.write-max-requests-per-window}") final int maxWritesPerWindow,
+            @Value("${app.security.rate-limit.window-seconds}") final long rateLimitWindowSeconds) {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -63,6 +67,10 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/prometheus").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
+                // Per-user limit needs the authenticated principal, so it runs right after the bearer token is
+                // validated (the address filter in front of the chain stays as the coarse ceiling).
+                .addFilterAfter(new UserRateLimitFilter(maxRequestsPerWindow, maxWritesPerWindow, rateLimitWindowSeconds),
+                        BearerTokenAuthenticationFilter.class)
                 .headers(this::configureHeaders);
         return http.build();
     }

@@ -26,8 +26,8 @@ class MaxRequestSizeFilterTest {
 
         filter.doFilterInternal(request, response, chain);
 
-        verify(chain).doFilter(request, response);
-        verify(response, never()).sendError(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString());
+        verify(chain).doFilter(org.mockito.ArgumentMatchers.any(HttpServletRequest.class), org.mockito.ArgumentMatchers.eq(response));
+        verify(response, never()).setStatus(HttpStatus.CONTENT_TOO_LARGE.value());
     }
 
     @Test
@@ -37,11 +37,14 @@ class MaxRequestSizeFilterTest {
         final FilterChain chain = mock(FilterChain.class);
         when(request.getContentLengthLong()).thenReturn(1_001L);
 
+        final java.io.StringWriter body = new java.io.StringWriter();
+        when(response.getWriter()).thenReturn(new java.io.PrintWriter(body));
+
         filter.doFilterInternal(request, response, chain);
 
-        verify(response).sendError(org.mockito.ArgumentMatchers.eq(HttpStatus.CONTENT_TOO_LARGE.value()),
-                org.mockito.ArgumentMatchers.anyString());
-        verify(chain, never()).doFilter(request, response);
+        verify(response).setStatus(HttpStatus.CONTENT_TOO_LARGE.value());
+        org.assertj.core.api.Assertions.assertThat(body.toString()).contains("\"code\":\"VALIDATION-12\"");
+        verify(chain, never()).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -53,6 +56,20 @@ class MaxRequestSizeFilterTest {
 
         filter.doFilterInternal(request, response, chain);
 
-        verify(chain).doFilter(request, response);
+        verify(chain).doFilter(org.mockito.ArgumentMatchers.any(HttpServletRequest.class), org.mockito.ArgumentMatchers.eq(response));
+    }
+
+    @Test
+    void doFilterInternal_ShouldHandTheChainARequestThatEnforcesTheLimitWhileReading() throws ServletException, IOException {
+        final HttpServletRequest request = mock(HttpServletRequest.class);
+        final HttpServletResponse response = mock(HttpServletResponse.class);
+        final FilterChain chain = mock(FilterChain.class);
+        when(request.getContentLengthLong()).thenReturn(-1L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        final org.mockito.ArgumentCaptor<HttpServletRequest> passed = org.mockito.ArgumentCaptor.forClass(HttpServletRequest.class);
+        verify(chain).doFilter(passed.capture(), org.mockito.ArgumentMatchers.eq(response));
+        org.assertj.core.api.Assertions.assertThat(passed.getValue()).isInstanceOf(LimitedBodyRequest.class);
     }
 }

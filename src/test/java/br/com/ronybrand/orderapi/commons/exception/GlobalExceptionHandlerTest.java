@@ -112,4 +112,27 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.INTERNAL_ERROR.getCode());
         assertThat(response.getBody().message()).doesNotContain("secret internal detail");
     }
+
+    @Test
+    void handleNotReadable_ShouldReturn413_WhenTheBodyExceededTheLimitWhileBeingRead() {
+        final var cause = new br.com.ronybrand.orderapi.commons.config.RequestBodyTooLargeException(1_000L);
+        final var ex = new org.springframework.http.converter.HttpMessageNotReadableException(
+                "I/O error while reading input message", cause, mock(org.springframework.http.HttpInputMessage.class));
+
+        final ResponseEntity<ErrorResponseDto> response = handler.handleNotReadable(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_PAYLOAD_TOO_LARGE.getCode());
+    }
+
+    @Test
+    void handleNotReadable_ShouldReturn400_ForAMalformedBodyInsteadOfA500() {
+        final var ex = new org.springframework.http.converter.HttpMessageNotReadableException(
+                "JSON parse error", mock(org.springframework.http.HttpInputMessage.class));
+
+        final ResponseEntity<ErrorResponseDto> response = handler.handleNotReadable(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.VALIDATION_CONSTRAINT_VIOLATION.getCode());
+    }
 }

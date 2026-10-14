@@ -7,6 +7,8 @@ app:
       allowed-origins: http://localhost:3000
     rate-limit:
       max-requests-per-window: 100000
+      write-max-requests-per-window: 100000
+      ip-max-requests-per-window: 100000
       window-seconds: 60
 
 spring:
