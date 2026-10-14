@@ -15,10 +15,9 @@ jobs:
         id: metadata
 
       # Auto-merge só entra na fila depois que os checks obrigatórios
-      # (branch protection: verify/analyze) passarem. Só patch é mergeado sem revisão: uma versão
-      # minor comprometida de uma dependência chegaria na main com o CI como único portão.
-      # Minor e major ficam sempre para revisão manual.
-      - if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+      # (branch protection: verify/analyze) passarem - major bump fica de
+      # fora, sempre revisado manualmente.
+      - if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
