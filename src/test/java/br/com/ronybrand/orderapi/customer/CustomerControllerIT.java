@@ -291,7 +291,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
                 request(authHeadersForUser()), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).contains("TAX-0019").doesNotContain("TAX-0020");
+        assertThat(response.getBody()).contains("Ada Lovelace").doesNotContain("Alan Turing");
     }
 
     @Test
@@ -340,7 +340,7 @@ class CustomerControllerIT extends AbstractAuthIntegrationTest {
                 request(authHeadersForUser()), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).contains("TAX-0018");
+        assertThat(response.getBody()).contains("Ada Lovelace");
     }
 
     @Test
