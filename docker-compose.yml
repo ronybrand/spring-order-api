@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-orderapi}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-orderapi}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
       POSTGRES_USER: keycloak
       POSTGRES_PASSWORD: keycloak
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - keycloak-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -32,7 +32,7 @@ services:
       retries: 10
 
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
+    image: quay.io/keycloak/keycloak:26.7.0
     # --import-realm loads ./keycloak/realm-export.json on startup (idempotent - skipped if the
     # realm already exists), provisioning the orderapi realm/client/roles/user automatically so
     # `docker compose up` needs no manual Keycloak setup.
@@ -54,7 +54,7 @@ services:
       # URI it was fetched from) - see README § Quick demo for how token-fetching for the
       # Docker-only demo path stays consistent with the `app` service without needing one.
     ports:
-      - "8085:8080"
+      - "127.0.0.1:8085:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
@@ -64,8 +64,8 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
@@ -73,15 +73,15 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:latest@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
   mongo:
     image: mongo:7
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -93,7 +93,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -107,7 +107,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: dev
       DB_HOST: postgres

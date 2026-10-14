@@ -1,5 +1,7 @@
 package br.com.ronybrand.orderapi.commons.config;
 
+import org.slf4j.MDC;
+import br.com.ronybrand.orderapi.commons.exception.ErrorCode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.servlet.FilterChain;
@@ -37,6 +39,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String FORWARDED_FOR_HEADER = "X-Forwarded-For";
     private static final String RETRY_AFTER_HEADER = "Retry-After";
+    private static final String HEALTH_PATH = "/actuator/health";
 
     private final int maxRequestsPerWindow;
     private final long windowSeconds;
@@ -69,14 +72,36 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(final HttpServletRequest request, final HttpServletResponse response,
             final FilterChain filterChain) throws ServletException, IOException {
+        if (isHealthProbe(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         final String key = resolveClientKey(request);
         final int count = counters.asMap().computeIfAbsent(key, k -> new AtomicInteger()).incrementAndGet();
         if (count > maxRequestsPerWindow) {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setHeader(RETRY_AFTER_HEADER, String.valueOf(windowSeconds));
+            response.setContentType("application/json");
+            response.getWriter().write(errorBody());
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    // The orchestrator's liveness/readiness probe shares an address with whatever sits in front of
+    // the app: rate limiting it would let ordinary traffic make a healthy instance look dead.
+    private static boolean isHealthProbe(final HttpServletRequest request) {
+        final String uri = request.getRequestURI();
+        return uri != null && uri.startsWith(request.getContextPath() + HEALTH_PATH);
+    }
+
+    // Same {message, code, params, requestId} contract as every other error; the request id was
+    // put in the MDC by RequestIdFilter, which runs before this filter.
+    private static String errorBody() {
+        final String requestId = MDC.get(RequestIdFilter.MDC_KEY);
+        return "{\"message\":\"" + ErrorCode.RATE_LIMIT_EXCEEDED.getDescription() + "\",\"code\":\""
+                + ErrorCode.RATE_LIMIT_EXCEEDED.getCode() + "\",\"params\":{},\"requestId\":"
+                + (requestId == null ? "null" : "\"" + requestId + "\"") + "}";
     }
 
     private String resolveClientKey(final HttpServletRequest request) {

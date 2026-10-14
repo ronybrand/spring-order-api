@@ -1,5 +1,7 @@
 package br.com.ronybrand.orderapi.commons.filter;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import br.com.ronybrand.orderapi.commons.exception.InvalidInputException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -64,6 +66,44 @@ class SearchUtilsTest {
         final Pageable pageable = SearchUtils.buildPageable(-5, 20, 100, Sort.by("id"));
 
         assertThat(pageable.getPageNumber()).isZero();
+    }
+
+    @Test
+    void buildFiltersFromQueryParams_ShouldRejectMoreFilterFieldsThanTheLimit() {
+        final MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        for (int i = 0; i <= SearchUtils.MAX_FILTER_FIELDS; i++) {
+            params.add("filter[field" + i + "]", "x");
+        }
+
+        assertThatThrownBy(() -> SearchUtils.buildFiltersFromQueryParams(params)).isInstanceOf(InvalidInputException.class);
+    }
+
+    @Test
+    void buildFiltersFromQueryParams_ShouldRejectMoreValuesPerFieldThanTheLimit() {
+        final MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        for (int i = 0; i <= SearchUtils.MAX_VALUES_PER_FIELD; i++) {
+            params.add("filter[status]", "v" + i);
+        }
+
+        assertThatThrownBy(() -> SearchUtils.buildFiltersFromQueryParams(params)).isInstanceOf(InvalidInputException.class);
+    }
+
+    @Test
+    void buildFiltersFromQueryParams_ShouldRejectValueLongerThanTheLimit() {
+        final MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        params.add("filter[name][lk]", "x".repeat(SearchUtils.MAX_VALUE_LENGTH + 1));
+
+        assertThatThrownBy(() -> SearchUtils.buildFiltersFromQueryParams(params)).isInstanceOf(InvalidInputException.class);
+    }
+
+    @Test
+    void buildFiltersFromQueryParams_ShouldAcceptEveryLimitExactly() {
+        final MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        for (int i = 0; i < SearchUtils.MAX_FILTER_FIELDS; i++) {
+            params.add("filter[field" + i + "]", "x".repeat(SearchUtils.MAX_VALUE_LENGTH));
+        }
+
+        assertThat(SearchUtils.buildFiltersFromQueryParams(params)).hasSize(SearchUtils.MAX_FILTER_FIELDS);
     }
 
     @Test

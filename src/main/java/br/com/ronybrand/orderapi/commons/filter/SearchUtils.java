@@ -26,6 +26,11 @@ public final class SearchUtils {
     private static final Pattern FILTER_PARAM_PATTERN = Pattern.compile("^filter\\[([^]]+)](?:\\[([^]]+)])?$");
     private static final String ID_FIELD = "id";
 
+    /** Structural ceilings of the query string: one request must not carry hundreds of predicates. */
+    public static final int MAX_FILTER_FIELDS = 10;
+    public static final int MAX_VALUES_PER_FIELD = 10;
+    public static final int MAX_VALUE_LENGTH = 200;
+
     private SearchUtils() {
     }
 
@@ -49,8 +54,17 @@ public final class SearchUtils {
             for (final String rawValue : entry.getValue()) {
                 values.add(prefix + rawValue);
             }
+            ensureWithinLimits(filters, values, entry.getValue());
         }
         return filters;
+    }
+
+    private static void ensureWithinLimits(final Map<String, List<String>> filters, final List<String> values,
+            final List<String> rawValues) {
+        if (filters.size() > MAX_FILTER_FIELDS || values.size() > MAX_VALUES_PER_FIELD
+                || rawValues.stream().anyMatch(rawValue -> rawValue.length() > MAX_VALUE_LENGTH)) {
+            throw new InvalidInputException("Search filters exceed the allowed limits", ErrorCode.VALIDATION_INVALID_FILTER_VALUE);
+        }
     }
 
     /**

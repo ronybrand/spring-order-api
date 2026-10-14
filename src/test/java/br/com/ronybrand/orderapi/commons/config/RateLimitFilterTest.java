@@ -1,5 +1,8 @@
 package br.com.ronybrand.orderapi.commons.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -37,6 +40,7 @@ class RateLimitFilterTest {
         final RateLimitFilter filter = new RateLimitFilter(2, 60, "");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
+        when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
         final FilterChain chain = mock(FilterChain.class);
         when(request.getRemoteAddr()).thenReturn("10.0.0.2");
 
@@ -47,6 +51,41 @@ class RateLimitFilterTest {
         verify(chain, times(2)).doFilter(request, response);
         verify(response).setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         verify(response).setHeader("Retry-After", "60");
+    }
+
+    @Test
+    void doFilterInternal_ShouldWriteTheStandardErrorBody_WhenRejecting() throws ServletException, IOException {
+        final RateLimitFilter filter = new RateLimitFilter(1, 60, "");
+        final HttpServletRequest request = mock(HttpServletRequest.class);
+        final HttpServletResponse response = mock(HttpServletResponse.class);
+        final FilterChain chain = mock(FilterChain.class);
+        final StringWriter body = new StringWriter();
+        when(request.getRemoteAddr()).thenReturn("10.0.0.9");
+        when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+        filter.doFilterInternal(request, response, chain);
+        filter.doFilterInternal(request, response, chain);
+
+        verify(response).setContentType("application/json");
+        assertThat(body.toString()).contains("\"code\":\"RATE-00\"").contains("\"message\":\"Rate limit exceeded\"");
+    }
+
+    @Test
+    void doFilterInternal_ShouldNeverRateLimitTheHealthProbe() throws ServletException, IOException {
+        final RateLimitFilter filter = new RateLimitFilter(1, 60, "");
+        final HttpServletRequest request = mock(HttpServletRequest.class);
+        final HttpServletResponse response = mock(HttpServletResponse.class);
+        final FilterChain chain = mock(FilterChain.class);
+        when(request.getRemoteAddr()).thenReturn("10.0.0.10");
+        when(request.getContextPath()).thenReturn("/api");
+        when(request.getRequestURI()).thenReturn("/api/actuator/health/readiness");
+
+        for (int i = 0; i < 5; i++) {
+            filter.doFilterInternal(request, response, chain);
+        }
+
+        verify(chain, times(5)).doFilter(request, response);
+        verify(response, never()).setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
     }
 
     @Test
@@ -71,6 +110,7 @@ class RateLimitFilterTest {
         final RateLimitFilter filter = new RateLimitFilter(1, 60, "10.0.0.1");
         final HttpServletRequest request = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
+        when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
         final FilterChain chain = mock(FilterChain.class);
         when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.5, 10.0.0.1");
         when(request.getRemoteAddr()).thenReturn("10.0.0.1");
@@ -88,6 +128,7 @@ class RateLimitFilterTest {
         final HttpServletRequest firstRequest = mock(HttpServletRequest.class);
         final HttpServletRequest secondRequest = mock(HttpServletRequest.class);
         final HttpServletResponse response = mock(HttpServletResponse.class);
+        when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
         final FilterChain chain = mock(FilterChain.class);
         when(firstRequest.getRemoteAddr()).thenReturn("10.0.0.5");
         when(firstRequest.getHeader("X-Forwarded-For")).thenReturn("1.1.1.1");
