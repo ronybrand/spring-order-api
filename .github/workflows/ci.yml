@@ -37,20 +37,41 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Builds the image on every pull request and push (it validates that the Dockerfile still
+  # produces a working image) but never pushes it. It does not wait for `verify`: the build does
+  # not use anything `verify` produces, so the two run side by side and the pipeline lasts as long
+  # as the slower one instead of their sum. It also warms the layer cache that `docker-publish`
+  # below reuses.
   docker-build:
-    needs: verify
     runs-on: ubuntu-latest
-    # Build-only on PRs (validates the Dockerfile still produces a working image); push to GHCR
-    # only from main, where GITHUB_TOKEN has package-write on this repo by default - a fork's PR
-    # run gets a read-only token, so pushing there would just fail, not add security value.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          push: false
+          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Push to GHCR only from main, where GITHUB_TOKEN has package-write on this repo by default (a
+  # fork's PR run gets a read-only token, so pushing there would just fail, not add security
+  # value), and only after BOTH the tests and the image build passed: nothing broken is published.
+  # Every layer comes from the cache `docker-build` just wrote, so this is the push, not a rebuild.
+  docker-publish:
+    needs: [verify, docker-build]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-      - if: github.event_name == 'push'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -58,10 +79,9 @@ jobs:
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          push: ${{ github.event_name == 'push' }}
+          push: true
           tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:${{ github.sha }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   # Publishes a static snapshot of the OpenAPI spec (see the comment on `verify` above) as a
   # Redoc page - the only way to see the API's shape without cloning the repo and running
