@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815
     environment:
       POSTGRES_DB: ${DB_NAME:-orderapi}
       POSTGRES_USER: ${DB_USERNAME:-orderapi}
@@ -16,7 +16,7 @@ services:
       retries: 10
 
   keycloak-db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:deb28ee471183cb0c303113dac9b2433c51eeeeb678def7af9a9ec5820367815
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -32,7 +32,7 @@ services:
       retries: 10
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.0
+    image: quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
     # --import-realm loads ./keycloak/realm-export.json on startup (idempotent - skipped if the
     # realm already exists), provisioning the orderapi realm/client/roles/user automatically so
     # `docker compose up` needs no manual Keycloak setup.
@@ -62,7 +62,7 @@ services:
         condition: service_healthy
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: rabbitmq:3.13-management-alpine@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
@@ -73,13 +73,13 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:latest@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
+    image: axllent/mailpit:v1.31.6@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
     ports:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
 
   mongo:
-    image: mongo:7
+    image: mongo:7@sha256:c53852c00c23ca9f23fc39690350ffa9a80e3642fe8f96879726d8da0abe80a7
     ports:
       - "127.0.0.1:27017:27017"
     volumes:
@@ -91,7 +91,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:892022f9f18c26c92c30e15194d132f90044af87b94a491a75429bbc3982eab1
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
