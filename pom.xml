@@ -10,7 +10,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.1</version>
+		<version>4.1.2</version>
 		<relativePath/>
 	</parent>
 	<groupId>br.com.ronybrand</groupId>
@@ -35,17 +35,7 @@
 			 jackson-2-bom.version above (Dependabot alerts #15/#16/#19/#21), fixed in 3.1.7. Overrides the
 			 inherited spring-boot-dependencies property the same way jackson-2-bom.version does. -->
 		<jackson-bom.version>3.1.7</jackson-bom.version>
-		<!-- Dependabot alerts #3/#4/#5 (critical): Tomcat's embedded FORM/DIGEST authenticators and
-			 access-control checks in 11.0.0-M1..11.0.24 have authentication-bypass issues, fixed in
-			 11.0.25. Overrides spring-boot-dependencies' own tomcat.version property. -->
-		<tomcat.version>11.0.26</tomcat.version>
-		<!-- Pending Dependabot bump of the amqp-client dependencyManagement pin (see PR #29) needs
-			 5.36.0, whose own POM requires netty-codec/netty-handler 4.2.18.Final - above the
-			 4.2.17.Final spring-boot-dependencies manages via this same property. Bumped ahead of
-			 that PR landing, same rationale as jackson-2-bom.version above: harmless now (nothing on
-			 the current 5.31.0 amqp-client pin needs it), just removes requireUpperBoundDeps's failure
-			 once the amqp-client pin actually moves. -->
-		<netty.version>4.2.18.Final</netty.version>
+
 		<!-- Single source of truth for the byte-buddy-agent javaagent path, referenced by both
 			 Surefire and Failsafe below - keeps the two argLine declarations from drifting apart. -->
 		<byteBuddyAgent.path>${project.build.directory}/byte-buddy-agent.jar</byteBuddyAgent.path>
@@ -322,7 +312,7 @@
 						<path>
 							<groupId>org.springframework.boot</groupId>
 							<artifactId>spring-boot-configuration-processor</artifactId>
-							<version>4.1.1</version>
+							<version>4.1.2</version>
 						</path>
 					</annotationProcessorPaths>
 				</configuration>
