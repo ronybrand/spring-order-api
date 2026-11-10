@@ -99,7 +99,7 @@
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>3.1.1</version>
+			<version>3.2.0</version>
 		</dependency>
 		<!-- PostgreSQL in every environment (dev via docker-compose, IT via Testcontainers, production via env vars) -->
 		<dependency>
@@ -215,13 +215,13 @@
 		<dependency>
 			<groupId>au.com.dius.pact.consumer</groupId>
 			<artifactId>junit5</artifactId>
-			<version>4.7.5</version>
+			<version>4.7.7</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>au.com.dius.pact.provider</groupId>
 			<artifactId>junit5</artifactId>
-			<version>4.7.5</version>
+			<version>4.7.7</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -234,7 +234,7 @@
 			<dependency>
 				<groupId>com.rabbitmq</groupId>
 				<artifactId>amqp-client</artifactId>
-				<version>5.37.0</version>
+				<version>5.37.1</version>
 			</dependency>
 			<!-- BouncyCastle (bcprov/bcpkix-jdk18on) comes transitively from pact-jvm's junit5 modules
 				 above, test-scoped only - not managed by any property in spring-boot-dependencies, unlike
@@ -272,7 +272,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-enforcer-plugin</artifactId>
-				<version>3.6.3</version>
+				<version>3.7.0</version>
 				<executions>
 					<execution>
 						<id>enforce-upper-bound-deps</id>
@@ -379,7 +379,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.15</version>
+				<version>0.8.16</version>
 				<executions>
 					<execution>
 						<id>jacoco-prepare-agent</id>
