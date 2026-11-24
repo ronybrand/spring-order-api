@@ -4,7 +4,7 @@
 # Tests are skipped here: CI (.github/workflows/ci.yml) already runs the full `mvn verify`
 # (unit + integration + PMD + JaCoCo) on every push/PR; re-running them (and needing
 # Docker-in-Docker for Testcontainers) inside the image build would be redundant and slow.
-FROM eclipse-temurin:25-jdk-alpine@sha256:c7c3d0bdf7f2bbc5a05a6712ed334d198360105634ea9adf76fca94f381b1e3f AS build
+FROM eclipse-temurin:25-jdk-alpine@sha256:22edbb1021420ae6e248519d1af07577742314d67d4c60fcbb2e285b7e47fa78 AS build
 WORKDIR /workspace
 
 COPY .mvn/ .mvn/
@@ -21,7 +21,7 @@ RUN ./mvnw -q -DskipTests package && \
     find target -maxdepth 1 -name '*.jar' ! -name '*.jar.original' -exec mv {} target/app.jar \;
 
 # Runtime stage - JRE only, non-root user, no build toolchain in the shipped image.
-FROM eclipse-temurin:25-jre-alpine@sha256:e1898fd6a11fc965a994d8ace186fd3585aeb636cf8f05f47a723fcfee0b0918
+FROM eclipse-temurin:25-jre-alpine@sha256:69c2a26e9894016e274c880fa542956d005b3755f84db765145185e87405bd89
 RUN apk upgrade --no-cache
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
